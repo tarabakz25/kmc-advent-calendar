@@ -1,64 +1,75 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 
-	/** セッション中に一度見せたら、以降のページ遷移・再読み込みでは出さない。 */
-	const SEEN_KEY = 'kmc-advent-loaded';
-	const DELAY = 150;
-	const DUR = 2300;
+	/** 実際の読み込み状況に関係なく、ページを開くたびに必ずこの時間だけ見せる（ms）。 */
+	const TOTAL = 2000;
+	const DELAY = 100;
 	/** 100% に届いてから消え始めるまでの余韻。 */
-	const HOLD = 450;
+	const HOLD = 350;
+	const DUR = TOTAL - DELAY - HOLD;
 
-	const TREE = [
-		['mint'],
-		['pine', 'coral', 'pine'],
-		['mint', 'pine', 'paper', 'pine', 'mint'],
-		['pine', 'coral', 'mint', 'pine', 'mint', 'coral', 'pine'],
-		['mint', 'pine', 'paper', 'pine', 'coral', 'pine', 'paper', 'pine', 'mint']
+	/** オーナメントの位置（上から順）。4% ごとに 1 つずつ灯る。 */
+	const ORN_POS: [number, number][] = [
+		[100, 52],
+		[88, 70],
+		[112, 68],
+		[76, 82],
+		[123, 82],
+		[100, 92],
+		[82, 106],
+		[118, 104],
+		[68, 122],
+		[96, 120],
+		[128, 124],
+		[56, 134],
+		[144, 132],
+		[100, 134],
+		[84, 148],
+		[116, 148],
+		[70, 162],
+		[100, 162],
+		[130, 162],
+		[57, 178],
+		[85, 180],
+		[115, 180],
+		[143, 178],
+		[46, 188],
+		[156, 188]
 	];
-	let k = 0;
-	const rows = TREE.map((row) =>
-		row.map((c) => ({ cls: `lt-${c}`, delay: `${(0.15 + k++ * 0.045).toFixed(3)}s` }))
-	);
+	const ORN_COLORS = ['var(--accent)', '#F3C65A', '#CFE3D3', '#F3EEE6'];
+	const ORN_OFF = 'rgba(11, 42, 41, 0.35)';
 
 	let show = $state(true);
 	let leaving = $state(false);
 	let pct = $state(0);
 
-	onMount(() => {
-		// app.html の先読みスクリプトで既に隠しているので、DOM からも外すだけ。
-		if (document.documentElement.classList.contains('ld-skip')) {
-			show = false;
-			return;
-		}
+	const orns = $derived(
+		ORN_POS.map(([x, y], i) => {
+			const on = pct >= (i + 1) * 4;
+			return { x, y, on, fill: on ? ORN_COLORS[i % 4] : ORN_OFF };
+		})
+	);
+	const starOn = $derived(pct >= 100);
 
-		const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	onMount(() => {
 		let raf = 0;
 		let timer: ReturnType<typeof setTimeout>;
 
 		const finish = () => {
-			try {
-				sessionStorage.setItem(SEEN_KEY, '1');
-			} catch {
-				// プライベートモードなどで保存できなくても表示には影響しない。
-			}
 			leaving = true;
 			timer = setTimeout(() => (show = false), 500);
 		};
 
-		if (reduced) {
-			pct = 100;
-			timer = setTimeout(finish, 600);
-		} else {
-			let t0: number | null = null;
-			const tick = (now: number) => {
-				t0 ??= now;
-				const p = Math.max(0, Math.min(1, (now - t0 - DELAY) / DUR));
-				pct = Math.round((1 - Math.pow(1 - p, 2.2)) * 100);
-				if (p < 1) raf = requestAnimationFrame(tick);
-				else timer = setTimeout(finish, HOLD);
-			};
-			raf = requestAnimationFrame(tick);
-		}
+		// OS の「視差効果を減らす」設定に関係なく、全員に同じ演出を見せる方針。
+		let t0: number | null = null;
+		const tick = (now: number) => {
+			t0 ??= now;
+			const p = Math.max(0, Math.min(1, (now - t0 - DELAY) / DUR));
+			pct = Math.round((1 - Math.pow(1 - p, 2.2)) * 100);
+			if (p < 1) raf = requestAnimationFrame(tick);
+			else timer = setTimeout(finish, HOLD);
+		};
+		raf = requestAnimationFrame(tick);
 
 		return () => {
 			cancelAnimationFrame(raf);
@@ -81,21 +92,57 @@
 			{#each { length: 7 } as _}<span class="ld-flake"></span>{/each}
 		</div>
 		<div class="ld-in">
-			<div class="ld-tree" aria-hidden="true">
-				<svg class="ld-star" width="40" height="40" viewBox="0 0 40 40">
+			<svg class="xtree" width="220" height="264" viewBox="0 0 200 240" aria-hidden="true">
+				<rect class="xt-trunk" x="88" y="192" width="24" height="24" rx="3" fill="#A86E48" />
+				<ellipse cx="100" cy="218" rx="62" ry="6" fill="#F3EEE6" opacity=".18" />
+				<circle cx="100" cy="128" r="104" fill="#CFE3D3" opacity=".07" />
+				<circle cx="100" cy="128" r="76" fill="#CFE3D3" opacity=".06" />
+				<path
+					class="xt-tier xt-3"
+					d="M100 106L172 190Q100 204 28 190Z"
+					fill="#2F8F62"
+					stroke="#CFE3D3"
+					stroke-width="2"
+					stroke-linejoin="round"
+				/>
+				<path
+					class="xt-tier xt-2"
+					d="M100 66L154 136Q100 148 46 136Z"
+					fill="#3AA171"
+					stroke="#CFE3D3"
+					stroke-width="2"
+					stroke-linejoin="round"
+				/>
+				<path
+					class="xt-tier xt-1"
+					d="M100 32L138 88Q100 97 62 88Z"
+					fill="#4DB583"
+					stroke="#CFE3D3"
+					stroke-width="2"
+					stroke-linejoin="round"
+				/>
+				<g
+					class="xt-garland"
+					fill="none"
+					stroke="#F3EEE6"
+					stroke-width="1.6"
+					stroke-linecap="round"
+					opacity=".55"
+				>
+					<path d="M72 80Q100 92 128 78" />
+					<path d="M58 124Q100 140 144 120" />
+					<path d="M42 174Q100 192 160 170" />
+				</g>
+				{#each orns as o}
+					<circle class="xt-orn" class:xt-on={o.on} cx={o.x} cy={o.y} r="4.6" style:fill={o.fill} />
+				{/each}
+				<g class="xt-star" class:xt-star-on={starOn}>
 					<path
-						d="M20 2l5.3 11.6L38 15l-9.4 8.6L31.2 36 20 29.6 8.8 36l2.6-12.4L2 15l12.7-1.4z"
+						d="M100 6l5 10.8 11.8 1.3-8.8 8 2.4 11.6L100 31.8l-10.4 5.9L92 26.1l-8.8-8 11.8-1.3z"
 						fill="#F3C65A"
 					/>
-				</svg>
-				{#each rows as row}
-					<div class="ld-row">
-						{#each row as t}<span class="ld-t {t.cls}" style:animation-delay={t.delay}
-							></span>{/each}
-					</div>
-				{/each}
-				<span class="ld-trunk"></span>
-			</div>
+				</g>
+			</svg>
 			<span class="ld-title">KMC ADVENT 2026</span>
 			<span class="ld-bar" aria-hidden="true"
 				><span class="ld-fill" style:width="{pct}%"></span></span
@@ -123,9 +170,6 @@
 		opacity: 0;
 		visibility: hidden;
 	}
-	:global(.ld-skip) .ld {
-		display: none;
-	}
 	.ld-snow {
 		position: absolute;
 		inset: 0;
@@ -144,58 +188,78 @@
 		transform: scale(0.96);
 	}
 
-	.ld-tree {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 6px;
+	/* ── ツリー ── */
+	.xtree {
+		overflow: visible;
+	}
+	.xt-tier {
+		transform-box: fill-box;
 		transform-origin: 50% 100%;
-		animation: ldbeat 0.5s ease 1.55s;
+		transform: scale(0);
+		animation: tierin 0.6s cubic-bezier(0.2, 1.4, 0.3, 1) forwards;
 	}
-	@keyframes ldbeat {
-		50% {
-			transform: scale(1.08) rotate(-2deg);
-		}
+	.xt-3 {
+		animation-delay: 0.1s;
 	}
-	.ld-row {
-		display: flex;
-		gap: 6px;
+	.xt-2 {
+		animation-delay: 0.25s;
 	}
-	.ld-t {
-		width: 26px;
-		height: 26px;
-		border-radius: 5px;
-		opacity: 0;
-		transform: scale(0.3) rotate(-25deg);
-		animation: ldpop 0.45s cubic-bezier(0.2, 1.5, 0.3, 1) forwards;
+	.xt-1 {
+		animation-delay: 0.4s;
 	}
-	@keyframes ldpop {
+	@keyframes tierin {
 		to {
-			opacity: 1;
 			transform: none;
 		}
 	}
-	.lt-pine {
-		background: #2a6a66;
+	.xt-trunk {
+		transform-box: fill-box;
+		transform-origin: 50% 0;
+		transform: scaleY(0);
+		animation: tierin 0.4s ease-out forwards;
 	}
-	.lt-mint {
-		background: #cfe3d3;
+	.xt-garland path {
+		stroke-dasharray: 140;
+		stroke-dashoffset: 140;
+		animation: garland 1.2s ease-out 0.7s forwards;
 	}
-	.lt-coral {
-		background: var(--accent);
+	@keyframes garland {
+		to {
+			stroke-dashoffset: 0;
+		}
 	}
-	.lt-paper {
-		background: #f3eee6;
+	.xt-orn {
+		transform-box: fill-box;
+		transform-origin: center;
+		transition: fill 0.3s;
 	}
-	.ld-star {
-		margin-bottom: 4px;
-		opacity: 0;
-		transform: scale(0) rotate(-180deg);
+	.xt-on {
+		animation: ornpop 0.45s cubic-bezier(0.2, 1.8, 0.3, 1);
+	}
+	@keyframes ornpop {
+		0% {
+			transform: scale(0.4);
+		}
+		100% {
+			transform: scale(1);
+		}
+	}
+	.xt-star {
+		transform-box: fill-box;
+		transform-origin: center;
+		opacity: 0.15;
+		transition: opacity 0.3s;
+	}
+	.xt-star-on {
+		opacity: 1;
 		animation:
-			starin 0.7s cubic-bezier(0.2, 1.5, 0.3, 1) 1.3s forwards,
-			starglow 2.4s ease-in-out 2s infinite;
+			starin 0.7s cubic-bezier(0.2, 1.5, 0.3, 1) forwards,
+			starglow 2.4s ease-in-out 0.7s infinite;
 	}
 	@keyframes starin {
+		from {
+			transform: scale(0) rotate(-180deg);
+		}
 		to {
 			opacity: 1;
 			transform: none;
@@ -210,23 +274,8 @@
 			filter: drop-shadow(0 0 14px rgba(243, 198, 90, 0.9));
 		}
 	}
-	.ld-trunk {
-		width: 22px;
-		height: 20px;
-		border-radius: 0 0 4px 4px;
-		background: #8a5a3c;
-		opacity: 0;
-		transform: scaleY(0);
-		transform-origin: 50% 0;
-		animation: trunkin 0.4s ease-out 0.1s forwards;
-	}
-	@keyframes trunkin {
-		to {
-			opacity: 1;
-			transform: none;
-		}
-	}
 
+	/* ── テキストと進捗 ── */
 	.ld-title {
 		font-family: 'Space Grotesk', sans-serif;
 		font-weight: 700;
@@ -234,7 +283,7 @@
 		letter-spacing: 0.32em;
 		color: #f3eee6;
 		opacity: 0;
-		animation: ldfade 0.6s ease-out 1.35s forwards;
+		animation: ldfade 0.5s ease-out 0.6s forwards;
 	}
 	@keyframes ldfade {
 		from {
@@ -276,6 +325,7 @@
 		color: var(--accent);
 	}
 
+	/* ── 雪 ── */
 	.ld-flake {
 		position: absolute;
 		top: -12px;
@@ -329,20 +379,6 @@
 	@keyframes ldfall {
 		to {
 			transform: translateY(110vh) translateX(-10px);
-		}
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.ld-t,
-		.ld-title,
-		.ld-tree,
-		.ld-star,
-		.ld-trunk {
-			animation-duration: 0.01s !important;
-			animation-delay: 0s !important;
-		}
-		.ld-flake {
-			display: none;
 		}
 	}
 </style>
