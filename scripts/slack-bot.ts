@@ -6,12 +6,15 @@
  *   bun scripts/slack-bot.ts --once    # 1回だけ確認して終了
  *   bun scripts/slack-bot.ts --test    # 設定確認用のテスト投稿だけして終了
  *
+ * サンプル記事の「公開のお知らせ」を試しに投稿するなら scripts/slack-test.ts を使う。
+ *
  * 必要な環境変数: DATABASE_URL, SLACK_BOT_TOKEN, SLACK_CHANNEL_ID
  * 任意: ORIGIN（カレンダーへのリンク用）, SLACK_POST_HOUR（この時刻(JST)より前は投稿しない。既定 8）
  */
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 import { notifyPublished, postMessage, slackConfigFrom } from '../src/lib/server/slack.ts';
+import { SLACK_TEMPLATES } from '../src/lib/server/slack-templates.ts';
 
 const INTERVAL_MS = 5 * 60_000;
 
@@ -27,9 +30,7 @@ if (!config) {
 }
 
 if (args.has('--test')) {
-	await postMessage(config, {
-		text: ':christmas_tree: KMC Advent Calendar の Slack 連携のテスト投稿です。'
-	});
+	await postMessage(config, { text: SLACK_TEMPLATES.test });
 	console.log('[slack] テスト投稿しました');
 	process.exit(0);
 }

@@ -17,6 +17,7 @@ import {
 	weekdayOf
 } from '../calendar.ts';
 import { entry, user } from './db/schema.ts';
+import { SLACK_TEMPLATES } from './slack-templates.ts';
 
 export type SlackConfig = {
 	token: string;
@@ -57,31 +58,56 @@ export async function postMessage(config: SlackConfig, body: Record<string, unkn
 /** Slack の mrkdwn で意味を持つ文字をエスケープする。 */
 const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-type Article = { day: number; title: string; url: string; author: string; genre: string | null };
+/** テンプレートの `{名前}` を vars の値で置き換える。知らない名前はそのまま残す。 */
+export function fill(template: string, vars: Record<string, string>) {
+	return template.replace(/\{(\w+)\}/g, (m, key: string) => vars[key] ?? m);
+}
 
-function messageOf(a: Article, origin?: string) {
-	const date = `12月${a.day}日(${weekdayOf(a.day)})`;
-	const meta = [`by ${escape(a.author)}`, genreOf(a.genre)?.label, platformOf(a.url)]
-		.filter(Boolean)
-		.join('  ·  ');
-	const headline = `:christmas_tree: KMC Advent Calendar ${CALENDAR_YEAR}　${date} の記事が公開されました！`;
+export type Article = {
+	day: number;
+	title: string;
+	url: string;
+	author: string;
+	genre: string | null;
+};
+
+/** 公開のお知らせメッセージ（chat.postMessage の body）を作る。文面は slack-templates.ts。 */
+export function messageOf(a: Article, origin?: string) {
+	const t = SLACK_TEMPLATES.published;
+	const raw: Record<string, string> = {
+		year: String(CALENDAR_YEAR),
+		day: String(a.day),
+		weekday: weekdayOf(a.day),
+		title: a.title,
+		url: a.url,
+		author: a.author,
+		genre: genreOf(a.genre)?.label ?? '',
+		platform: platformOf(a.url),
+		calendar: origin ? `${origin}/calendar` : ''
+	};
+	// mrkdwn に埋め込む値はエスケープする（URL はリンク記法の中で使うのでそのまま）。
+	const md = Object.fromEntries(
+		Object.entries(raw).map(([k, v]) => [k, k === 'url' || k === 'calendar' ? v : escape(v)])
+	);
+
+	const headline = fill(t.headline, md);
+	// 値が空の項目（ジャンル未選択など）は、置き換え前後で文字が残っていても省く。
+	const meta = t.meta
+		.filter((item) => [...item.matchAll(/\{(\w+)\}/g)].every(([, key]) => raw[key]))
+		.map((item) => fill(item, md))
+		.join(t.separator);
 
 	return {
-		text: `${headline}\n${a.title} ${a.url}`,
+		text: fill(t.fallback, { ...raw, headline: fill(t.headline, raw) }),
 		unfurl_links: true,
 		blocks: [
 			{ type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
 			{
 				type: 'section',
-				text: { type: 'mrkdwn', text: `*<${a.url}|${escape(a.title)}>*\n${meta}` }
+				text: { type: 'mrkdwn', text: `*${fill(t.title, md)}*${meta ? `\n${meta}` : ''}` }
 			},
-			...(origin
-				? [
-						{
-							type: 'context',
-							elements: [{ type: 'mrkdwn', text: `<${origin}/calendar|カレンダーを見る>` }]
-						}
-					]
+			...(raw.calendar && t.footer
+				? [{ type: 'context', elements: [{ type: 'mrkdwn', text: fill(t.footer, md) }] }]
 				: [])
 		]
 	};

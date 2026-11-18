@@ -105,6 +105,7 @@ docker compose run --rm app bun run db:migrate     # 初回と、スキーマ更
 2. **Install to Workspace** して、表示された **Bot User OAuth Token**(`xoxb-...`)を `.env` の `SLACK_BOT_TOKEN` に入れる
 3. 投稿先チャンネルの ID(チャンネル名を右クリック →「チャンネル詳細」の一番下、`C...`)を `SLACK_CHANNEL_ID` に入れる。非公開チャンネルなら `/invite @KMC Advent Calendar` で招待する
 4. `./deploy.sh` で反映。`docker compose run --rm slack bun scripts/slack-bot.ts --test` でテスト投稿できます
+5. 実際の通知と同じ見た目で試すなら `bun run slack:test`(サンプル記事を投稿。DB は変更しない)。`--dry-run` で投稿せずに中身だけ確認できます。文面は [`src/lib/server/slack-templates.ts`](src/lib/server/slack-templates.ts) で変えられます
 
 - 投稿は `SLACK_POST_HOUR`(JST、既定 8 時)以降。0 にすると日付が変わった直後に投稿します。
 - 設定しなければ `slack` コンテナは何もせず待機します。
