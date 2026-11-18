@@ -63,6 +63,12 @@ docker compose run --rm --no-deps app bun run db:migrate
 say "アプリと Slack 通知を起動しています"
 docker compose up -d app slack
 
+# .env に TUNNEL_TOKEN があれば Cloudflare Tunnel も起動する
+if grep -qE '^TUNNEL_TOKEN=.+' .env; then
+	say "Cloudflare Tunnel を起動しています"
+	docker compose up -d tunnel
+fi
+
 # ───── 起動確認 ─────
 for _ in $(seq 1 30); do
 	if curl -fsS -o /dev/null http://127.0.0.1:3000/; then

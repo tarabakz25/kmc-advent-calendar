@@ -28,6 +28,18 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/kmc_advent
     command: ['bun', 'scripts/slack-bot.ts']
 
+  # Cloudflare Tunnel で https://advent.marusaba.net などから公開する。
+  # .env の TUNNEL_TOKEN を使い、docker compose up でアプリと一緒に起動する（ポート開放は不要）。
+  # Cloudflare 側の公開先（Service）は http://app:3000 にする。
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    depends_on:
+      - app
+    command: ['tunnel', '--no-autoupdate', 'run']
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped

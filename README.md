@@ -81,6 +81,16 @@ docker compose run --rm app bun run db:migrate     # 初回と、スキーマ更
 - 更新: `git pull && docker compose up -d --build && docker compose run --rm app bun run db:migrate`
 - バックアップ: `docker compose exec db pg_dump -U postgres kmc_advent > backup.sql`
 
+### 独自ドメインで公開(Cloudflare Tunnel)
+
+ポート開放やリバースプロキシなしで `https://advent.marusaba.net` のように公開できます。HTTPS 証明書も Cloudflare が用意します。
+
+1. Cloudflare に `marusaba.net` を追加し、表示された2つのネームサーバーを、ドメインを取った会社(さくら等)の管理画面で設定する
+2. Cloudflare の「Zero Trust」→「ネットワーク」→「Tunnels」→ トンネルを作成(種類は Cloudflared)。表示されるトークン(`eyJ...`)を `.env` の `TUNNEL_TOKEN` に入れる
+3. 同じ画面の「公開ホスト名」で、ホスト名 `advent.marusaba.net`、サービス `HTTP` / `app:3000` を追加する
+4. `.env` の `ORIGIN` を `https://advent.marusaba.net` にし、Google の「承認済みのリダイレクト URI」に `https://advent.marusaba.net/api/auth/callback/google` を追加する
+5. `./deploy.sh`(または `docker compose up -d --build`)を実行する。トンネルもアプリと一緒に起動します
+
 ### Google でログイン(学校の Google アカウントで1クリック)
 
 スタッフの作業は要らず、自分の Google アカウントで設定できます。
