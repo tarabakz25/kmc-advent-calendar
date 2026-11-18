@@ -9,8 +9,8 @@
 
 	let { data, children }: LayoutProps = $props();
 
-	/** トップはキービジュアルの中にナビを置くので、共通ヘッダーを出さない。 */
-	const showHeader = $derived(page.url.pathname !== '/');
+	/** トップはキービジュアルの中に、ログインは左の帯にロゴを置くので、共通ヘッダーを出さない。 */
+	const showHeader = $derived(page.url.pathname !== '/' && page.url.pathname !== '/login');
 
 	// ページ切り替えをふわっとつなぐ（対応ブラウザのみ）。
 	onNavigate((navigation) => {

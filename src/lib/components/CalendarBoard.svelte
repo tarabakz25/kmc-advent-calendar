@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { CALENDAR_YEAR, DAYS, type PublicEntry } from '#lib/calendar.ts';
-	import { colorOf, heroStatus, pad, shapeOf, STATUS_LABEL, statusOf, weekdayEn, type SlotStatus } from '#lib/design.ts';
+	import { colorOf, heroStatus, pad, shapeOf, STATUS_LABEL, statusOf, type SlotStatus } from '#lib/design.ts';
+	import Avatar from './Avatar.svelte';
 	import BgDeco from './BgDeco.svelte';
 	import DayModal from './DayModal.svelte';
 	import Legend from './Legend.svelte';
@@ -86,13 +87,16 @@
 				style="--i: {day}"
 			>
 				<span class="flex items-start justify-between gap-2">
-					<span class="flex flex-col gap-1"><span class="num">{pad(day)}</span><span class="wd">{weekdayEn(day)}</span></span>
+					<span class="num">{pad(day)}</span>
 					<span class="stb stb-{st}" title={STATUS_LABEL[st]}><StatusIcon status={st} /></span>
 				</span>
 				{#if isToday}<span class="badge">TODAY</span>{/if}
 				{#if entry}
 					<span class="flex min-w-0 flex-col gap-1">
-						<span class="who">{entry.author}</span>
+						<span class="flex min-w-0 items-center gap-[7px]">
+							<Avatar name={entry.author} image={entry.image} class="uav" plain />
+							<span class="who">{entry.author}</span>
+						</span>
 						<span class="ttl">{entry.title}</span>
 					</span>
 				{:else}
@@ -301,12 +305,8 @@
 	.w2 .num {
 		font-size: 56px;
 	}
-	.wd {
-		font-family: var(--font-display);
-		font-size: 11px;
-		font-weight: 700;
-		letter-spacing: 0.12em;
-		opacity: 0.7;
+	.tile:hover :global(.uav) {
+		transform: scale(1.12);
 	}
 	.tile .stb {
 		width: 28px;
@@ -432,8 +432,10 @@
 		.calfit .who {
 			font-size: 12px;
 		}
-		.calfit .wd {
-			font-size: 10px;
+		.calfit :global(.uav) {
+			width: 18px;
+			height: 18px;
+			font-size: 9px;
 		}
 		.calfit .tile .stb {
 			width: 24px;

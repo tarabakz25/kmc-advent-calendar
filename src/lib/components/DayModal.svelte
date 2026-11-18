@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import { CALENDAR_YEAR, GENRES, genreOf, isLocked, TITLE_MAX, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
 	import { colorOf, colorValues, pad, STATUS_LABEL, statusOf, weekdayEn } from '#lib/design.ts';
+	import Avatar from './Avatar.svelte';
 
 	let { day, entry, today, onclose }: { day: number; entry: PublicEntry | undefined; today: string; onclose: () => void } = $props();
 
@@ -71,7 +72,10 @@
 		{#if entry}
 			<span class="flex flex-col gap-2.5">
 				{#if genre}<span class="gchip" style="--g: {genre.color}">{genre.label}</span>{/if}
-				<span class="mt-name">{entry.author}</span>
+				<span class="flex items-center gap-2.5">
+					<Avatar name={entry.author} image={entry.image} class="uav uav-lg" plain />
+					<span class="mt-name">{entry.author}</span>
+				</span>
 				{#if readable}
 					<a class="mt-title" href={entry.url} target="_blank" rel="noopener noreferrer">{entry.title}</a>
 				{:else}

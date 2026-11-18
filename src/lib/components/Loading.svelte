@@ -10,34 +10,34 @@
 
 	/** オーナメントの位置（上から順）。4% ごとに 1 つずつ灯る。 */
 	const ORN_POS: [number, number][] = [
-		[100, 52],
-		[88, 70],
-		[112, 68],
-		[76, 82],
-		[123, 82],
-		[100, 92],
-		[82, 106],
-		[118, 104],
-		[68, 122],
-		[96, 120],
-		[128, 124],
-		[56, 134],
-		[144, 132],
-		[100, 134],
-		[84, 148],
-		[116, 148],
-		[70, 162],
-		[100, 162],
-		[130, 162],
-		[57, 178],
-		[85, 180],
-		[115, 180],
-		[143, 178],
-		[46, 188],
-		[156, 188]
+		[100, 48],
+		[92, 60],
+		[108, 58],
+		[84, 72],
+		[114, 71],
+		[100, 86],
+		[86, 96],
+		[114, 95],
+		[76, 113],
+		[100, 99],
+		[124, 112],
+		[64, 116],
+		[136, 114],
+		[100, 128],
+		[86, 140],
+		[114, 138],
+		[72, 152],
+		[100, 147],
+		[128, 150],
+		[56, 168],
+		[86, 168],
+		[114, 168],
+		[144, 166],
+		[44, 169],
+		[156, 169]
 	];
 	const ORN_COLORS = ['var(--accent)', '#F3C65A', '#CFE3D3', '#F3EEE6'];
-	const ORN_OFF = 'rgba(11, 42, 41, 0.35)';
+	const ORN_OFF = 'rgba(11, 42, 41, 0.4)';
 
 	let show = $state(true);
 	let leaving = $state(false);
@@ -93,45 +93,22 @@
 		</div>
 		<div class="ld-in">
 			<svg class="xtree" width="220" height="264" viewBox="0 0 200 240" aria-hidden="true">
-				<rect class="xt-trunk" x="88" y="192" width="24" height="24" rx="3" fill="#A86E48" />
-				<ellipse cx="100" cy="218" rx="62" ry="6" fill="#F3EEE6" opacity=".18" />
-				<circle cx="100" cy="128" r="104" fill="#CFE3D3" opacity=".07" />
-				<circle cx="100" cy="128" r="76" fill="#CFE3D3" opacity=".06" />
-				<path
-					class="xt-tier xt-3"
-					d="M100 106L172 190Q100 204 28 190Z"
-					fill="#2F8F62"
-					stroke="#CFE3D3"
-					stroke-width="2"
-					stroke-linejoin="round"
-				/>
-				<path
-					class="xt-tier xt-2"
-					d="M100 66L154 136Q100 148 46 136Z"
-					fill="#3AA171"
-					stroke="#CFE3D3"
-					stroke-width="2"
-					stroke-linejoin="round"
-				/>
-				<path
-					class="xt-tier xt-1"
-					d="M100 32L138 88Q100 97 62 88Z"
-					fill="#4DB583"
-					stroke="#CFE3D3"
-					stroke-width="2"
-					stroke-linejoin="round"
-				/>
+				<circle cx="100" cy="118" r="100" fill="#CFE3D3" opacity=".06" />
+				<ellipse cx="100" cy="200" rx="64" ry="6" fill="#F3EEE6" opacity=".16" />
+				<rect class="xt-trunk" x="90" y="170" width="20" height="28" fill="#3AA171" />
+				<path class="xt-tier xt-3" d="M100 92L176 172L24 172Z" fill="#3AA171" />
+				<path class="xt-tier xt-2" d="M100 56L152 118L48 118Z" fill="#3AA171" />
+				<path class="xt-tier xt-1" d="M100 28L130 74L70 74Z" fill="#3AA171" />
 				<g
 					class="xt-garland"
 					fill="none"
 					stroke="#F3EEE6"
-					stroke-width="1.6"
+					stroke-width="2.4"
 					stroke-linecap="round"
-					opacity=".55"
 				>
-					<path d="M72 80Q100 92 128 78" />
-					<path d="M58 124Q100 140 144 120" />
-					<path d="M42 174Q100 192 160 170" />
+					<path d="M80 66Q100 75 121 63" />
+					<path d="M60 108Q100 123 141 103" />
+					<path d="M40 160Q100 178 160 155" />
 				</g>
 				{#each orns as o}
 					<circle class="xt-orn" class:xt-on={o.on} cx={o.x} cy={o.y} r="4.6" style:fill={o.fill} />
