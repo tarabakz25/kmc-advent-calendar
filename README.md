@@ -19,6 +19,39 @@ bun run dev              # http://localhost:5173
 - `?today=2026-12-10` を付けると、開発中だけ日付を差し替えて見た目を確認できます。
 - ログインには Google の設定が必要です。開発中は `http://localhost:5173/api/auth/callback/google` をリダイレクト URI に登録してください。
 
+## Vercel へのデプロイ
+
+Vercel 上では自動で `@sveltejs/adapter-vercel`（東京リージョン `hnd1`）でビルドされます。Docker 用の設定はそのまま残っています。
+
+1. **DB を用意する**: Vercel のダッシュボード → Storage → **Neon**(Postgres) を作ってプロジェクトに接続する(`DATABASE_URL` が自動で入ります)。Supabase などでも可。サーバーレスなので **プーラー経由の接続文字列**(Neon なら host に `-pooler` が付くもの)を使ってください。
+2. **プロジェクトを作る**: GitHub リポジトリを Vercel に Import する(Framework は SvelteKit が自動で選ばれます)。CLI なら `vercel link`。
+3. **環境変数を設定する**(Settings → Environment Variables、または `vercel env add`)
+
+   | 変数 | 内容 |
+   | --- | --- |
+   | `DATABASE_URL` | 1 の接続文字列(Neon を接続した場合は自動) |
+   | `ORIGIN` | 本番 URL(例: `https://kmc-advent.vercel.app`) |
+   | `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
+   | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google ログイン(下記)。リダイレクト URI は `<ORIGIN>/api/auth/callback/google` |
+   | `CRON_SECRET` | `openssl rand -hex 32`。Slack 通知の Cron 用 |
+   | `SLACK_BOT_TOKEN` / `SLACK_CHANNEL_ID` / `SLACK_POST_HOUR` | Slack 通知(任意) |
+
+4. **テーブルを作る**(初回と、スキーマを変えたあと。手元から本番 DB に流します)
+
+   ```sh
+   vercel env pull .env.production.local
+   bun --env-file=.env.production.local run db:migrate
+   ```
+
+5. デプロイ: `main` に push すれば自動でデプロイされます(CLI なら `vercel --prod`)。
+
+Slack 通知は、Vercel では常駐できないので次の2つで動きます。
+
+- **Vercel Cron**(`vercel.json`)が毎日 8:00 JST に `/api/cron/slack` を呼び、公開日を迎えた記事を投稿する(Hobby プランでは Cron は1日1回まで)
+- 公開日を過ぎてから URL が登録されたときは、その場で投稿する
+
+`SLACK_POST_HOUR` を変える場合は、`vercel.json` の `schedule`(UTC)も合わせてください。
+
 ## 学内サーバーへのデプロイ(Docker)
 
 サーバーに Docker が入っていれば、これだけで動きます。
@@ -63,6 +96,18 @@ docker compose run --rm app bun run db:migrate     # 初回と、スキーマ更
 - リダイレクト URI は、`localhost` 以外では **`https://` の公開ドメイン**だけ使えます(`http://192.168.x.x` や `.local` は不可)。手元での開発・確認は `http://localhost:5173/api/auth/callback/google` で動きます。
 - 学校の Google Workspace 側で「未承認のサードパーティアプリ」を制限していると、生徒がログインしようとしてブロックされます。その場合は管理者にこのクライアントIDの許可を頼んでください。
 - 学校のドメイン以外のアカウント(個人の Gmail など)は、ログインできません。
+
+### Slack 通知(任意)
+
+その日の記事が公開されたら(公開日になり、URL が登録されたら)、Slack のチャンネルに1記事1回だけ投稿します。URL の登録が遅れた記事も、登録された時点で投稿されます。
+
+1. [Slack API](https://api.slack.com/apps) → **Create New App** → **From a manifest** → ワークスペースを選び、[`slack/manifest.yml`](slack/manifest.yml) の中身を貼り付けて作成
+2. **Install to Workspace** して、表示された **Bot User OAuth Token**(`xoxb-...`)を `.env` の `SLACK_BOT_TOKEN` に入れる
+3. 投稿先チャンネルの ID(チャンネル名を右クリック →「チャンネル詳細」の一番下、`C...`)を `SLACK_CHANNEL_ID` に入れる。非公開チャンネルなら `/invite @KMC Advent Calendar` で招待する
+4. `./deploy.sh` で反映。`docker compose run --rm slack bun scripts/slack-bot.ts --test` でテスト投稿できます
+
+- 投稿は `SLACK_POST_HOUR`(JST、既定 8 時)以降。0 にすると日付が変わった直後に投稿します。
+- 設定しなければ `slack` コンテナは何もせず待機します。
 
 ## 毎年の更新
 

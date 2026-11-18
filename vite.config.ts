@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
-import adapter from '@sveltejs/adapter-node';
+import nodeAdapter from '@sveltejs/adapter-node';
+import vercelAdapter from '@sveltejs/adapter-vercel';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
@@ -13,8 +14,9 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 
-			// 学内サーバーで Docker コンテナとして動かすため Node(Bun)向けにビルドする。
-			adapter: adapter()
+			// Vercel 上のビルドでは Vercel 向け、それ以外（Docker / 手元）は Node(Bun) 向けにビルドする。
+			// Vercel はビルド時に VERCEL=1 を入れる。
+			adapter: process.env.VERCEL ? vercelAdapter({ regions: ['hnd1'] }) : nodeAdapter()
 		})
 	]
 });

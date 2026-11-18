@@ -22,6 +22,8 @@ export const entry = pgTable(
 		genre: text('genre'),
 		/** URL が最初に登録された時刻（タイムラインの「投稿順」に使う）。URL を消すと null に戻る。 */
 		postedAt: timestamp('posted_at'),
+		/** Slack に公開のお知らせを投稿した時刻。二重投稿を防ぐ。 */
+		slackNotifiedAt: timestamp('slack_notified_at'),
 		createdAt: timestamp('created_at').defaultNow().notNull(),
 		updatedAt: timestamp('updated_at')
 			.defaultNow()

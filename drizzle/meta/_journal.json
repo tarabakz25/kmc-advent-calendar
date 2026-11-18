@@ -22,6 +22,13 @@
       "when": 1794986406283,
       "tag": "0002_married_masque",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794989958014,
+      "tag": "0003_chilly_clint_barton",
+      "breakpoints": true
     }
   ]
 }

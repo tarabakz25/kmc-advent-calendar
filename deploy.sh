@@ -60,8 +60,8 @@ docker compose up -d --wait db
 say "DB のマイグレーションを実行しています"
 docker compose run --rm --no-deps app bun run db:migrate
 
-say "アプリを起動しています"
-docker compose up -d app
+say "アプリと Slack 通知を起動しています"
+docker compose up -d app slack
 
 # ───── 起動確認 ─────
 for _ in $(seq 1 30); do

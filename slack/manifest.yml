@@ -1,0 +1,22 @@
+# Slack アプリのマニフェスト。
+# https://api.slack.com/apps → Create New App → From a manifest → このファイルの中身を貼り付ける。
+# 投稿の仕組みは scripts/slack-bot.ts を参照。
+display_information:
+  name: KMC Advent Calendar
+  description: その日のアドベントカレンダー記事が公開されたらお知らせします
+  background_color: '#1f3a2e'
+features:
+  bot_user:
+    display_name: KMC Advent Calendar
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      # メッセージを投稿する
+      - chat:write
+      # 招待されていない公開チャンネルにも投稿できるようにする（招待するなら不要）
+      - chat:write.public
+settings:
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false

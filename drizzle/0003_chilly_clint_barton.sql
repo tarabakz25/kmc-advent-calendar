@@ -1,0 +1,1 @@
+ALTER TABLE "entry" ADD COLUMN "slack_notified_at" timestamp;

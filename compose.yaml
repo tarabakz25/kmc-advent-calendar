@@ -3,6 +3,7 @@
 services:
   app:
     build: .
+    image: kmc-advent-calendar
     restart: unless-stopped
     depends_on:
       db:
@@ -13,6 +14,19 @@ services:
       DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/kmc_advent
     ports:
       - '3000:3000'
+
+  # その日の記事が公開されたら Slack に投稿する（scripts/slack-bot.ts）。
+  # .env に SLACK_BOT_TOKEN / SLACK_CHANNEL_ID がなければ何もせず待機する。
+  slack:
+    image: kmc-advent-calendar
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/kmc_advent
+    command: ['bun', 'scripts/slack-bot.ts']
 
   db:
     image: postgres:17-alpine

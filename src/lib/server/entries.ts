@@ -14,6 +14,7 @@ import {
 } from '#lib/calendar.ts';
 import { db } from '#lib/server/db/index.ts';
 import { entry, user } from '#lib/server/db/schema.ts';
+import { notifySlack } from '#lib/server/notify.ts';
 
 /**
  * 「今日」の決定。開発中だけ `?today=2026-12-10` で日付を差し替えて、
@@ -157,6 +158,11 @@ export async function saveEntry(userId: string, day: number, form: FormData) {
 			url: rawUrl,
 			genre: rawGenre
 		});
+	}
+	// 公開日を過ぎてから URL が登録されたら、Cron を待たずにすぐ Slack に投稿する。
+	// サーバーレスでは応答後に処理が止まることがあるので、ここで待つ（失敗しても保存は成功扱い）。
+	if (input.url && dayOffset(day, todayInJst()) <= 0) {
+		await notifySlack().catch((err) => console.error('[slack]', err));
 	}
 	return { saved: true as const, day, reserved: !input.url };
 }

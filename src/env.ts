@@ -20,5 +20,19 @@ export const variables = defineEnvVars({
 	GOOGLE_CLIENT_SECRET: {
 		description: 'Google ログイン用の OAuth クライアントシークレット。',
 		schema: optional
+	},
+	SLACK_BOT_TOKEN: {
+		description: 'Slack 通知用の Bot User OAuth Token (xoxb-...)。未設定なら Slack 投稿は無効。',
+		schema: optional
+	},
+	SLACK_CHANNEL_ID: { description: 'Slack の投稿先チャンネルID (C...)。', schema: optional },
+	SLACK_POST_HOUR: {
+		description: 'この時刻(JST)より前は Slack に投稿しない。既定 8。',
+		schema: optional
+	},
+	CRON_SECRET: {
+		description:
+			'Vercel Cron が /api/cron/* を呼ぶときの Bearer トークン。Vercel が自動で付けるので、同じ値を環境変数に入れる。',
+		schema: optional
 	}
 });
