@@ -23,6 +23,11 @@ export function dayOffset(day: number, today: string): number {
 	return Math.round((target - Date.parse(`${today}T00:00:00Z`)) / DAY_MS);
 }
 
+/** 公開日（12月 `day` 日 0 時 JST）より前か。前なら記事はまだ読めない。 */
+export function isLocked(day: number, today: string): boolean {
+	return dayOffset(day, today) > 0;
+}
+
 export function weekdayOf(day: number): string {
 	return WEEKDAYS[new Date(Date.UTC(CALENDAR_YEAR, 11, day)).getUTCDay()];
 }

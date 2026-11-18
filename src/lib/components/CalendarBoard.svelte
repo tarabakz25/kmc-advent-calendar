@@ -23,7 +23,7 @@
 	const counts = $derived(
 		days.reduce<Record<SlotStatus, number>>(
 			(acc, d) => {
-				acc[statusOf(byDay.get(d))]++;
+				acc[statusOf(byDay.get(d), today)]++;
 				return acc;
 			},
 			{ open: 0, res: 0, done: 0 }
@@ -52,7 +52,7 @@
 			<Legend {counts} detail />
 			<div class="segs" aria-hidden="true">
 				{#each days as d (d)}
-					<span class="seg seg-{statusOf(byDay.get(d))}"></span>
+					<span class="seg seg-{statusOf(byDay.get(d), today)}"></span>
 				{/each}
 			</div>
 		</section>
@@ -74,7 +74,7 @@
 
 		{#each days as day (day)}
 			{@const entry = byDay.get(day)}
-			{@const st = statusOf(entry)}
+			{@const st = statusOf(entry, today)}
 			{@const isToday = day === hero.todayDay}
 			<a
 				href="/day/{day}"
@@ -111,7 +111,7 @@
 </div>
 
 {#if selected !== null}
-	<DayModal day={selected} entry={byDay.get(selected)} onclose={() => (selected = null)} />
+	<DayModal day={selected} entry={byDay.get(selected)} {today} onclose={() => (selected = null)} />
 {/if}
 
 <style>

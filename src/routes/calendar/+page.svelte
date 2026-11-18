@@ -10,7 +10,7 @@
 	const counts = $derived.by(() => {
 		const byDay = new Map(data.entries.map((e) => [e.day, e]));
 		const c: Record<SlotStatus, number> = { open: 0, res: 0, done: 0 };
-		for (let d = 1; d <= DAYS; d++) c[statusOf(byDay.get(d))]++;
+		for (let d = 1; d <= DAYS; d++) c[statusOf(byDay.get(d), data.today)]++;
 		return c;
 	});
 </script>

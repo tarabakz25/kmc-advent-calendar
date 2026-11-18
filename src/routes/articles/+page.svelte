@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { GENRES, genreOf, type Genre } from '#lib/calendar.ts';
-	import BgDeco from '#lib/components/BgDeco.svelte';
-	import { colorOf, pad, weekdayEn } from '#lib/design.ts';
+	import { GENRES, genreOf, isLocked, type Genre } from '#lib/calendar.ts';
+	import BgDeco from '#lib/components/BgDeco.svelte';	import { colorOf, pad, weekdayEn } from '#lib/design.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -42,12 +41,14 @@
 	<div class="list" role="tabpanel" aria-label="{curLabel}の記事">
 		{#each shown as e, i (e.day)}
 			{@const g = genreOf(e.genre)}
+			<!-- 公開日前は本人の記事でもリンクにせず「公開待ち」に見せる。 -->
+			{@const href = isLocked(e.day, data.today) ? null : e.url}
 			<svelte:element
-				this={e.url ? 'a' : 'div'}
+				this={href ? 'a' : 'div'}
 				class="card"
-				href={e.url ?? undefined}
-				target={e.url ? '_blank' : undefined}
-				rel={e.url ? 'noopener noreferrer' : undefined}
+				href={href ?? undefined}
+				target={href ? '_blank' : undefined}
+				rel={href ? 'noopener noreferrer' : undefined}
 				style="animation-delay: {(i * 0.06).toFixed(2)}s"
 			>
 				<div class="card-top c-{colorOf(e.day)}">
@@ -58,7 +59,7 @@
 					<h2 class="card-title">{e.title}</h2>
 					<div class="card-foot">
 						<span class="card-who">{e.author}</span>
-						{#if e.url}
+						{#if href}
 							<span class="card-go"
 								>記事を読む<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"
 									><path d="M5 11L11 5M6 5h5v5"></path></svg

@@ -33,7 +33,7 @@
 			<span class="dnum">{pad(data.day)}</span>
 			<span class="flex flex-col items-end gap-2.5 pt-1.5">
 				<span class="font-display text-xs font-bold tracking-[.12em] opacity-80">{data.year}.12.{pad(data.day)} {weekdayEn(data.day)}（{weekdayOf(data.day)}）</span>
-				<span class="dstatus">{STATUS_LABEL[statusOf(entry ?? undefined)]}</span>
+				<span class="dstatus">{STATUS_LABEL[statusOf(entry ?? undefined, data.today)]}</span>
 			</span>
 		</span>
 		{#if entry && !entry.mine}
@@ -41,7 +41,7 @@
 				{#if genre}<span class="gchip" style="--g: {genre.color}">{genre.label}</span>{/if}
 				<span class="font-display text-[17px] font-bold">{entry.author}</span>
 				<h1 class="m-0 text-[28px] leading-snug font-black">{entry.title}</h1>
-				{#if entry.url}
+				{#if entry.url && !data.isFuture}
 					<a href={entry.url} target="_blank" rel="noopener noreferrer" class="btn dyes mt-2.5 self-start">{platformOf(entry.url)} で読む ↗</a>
 				{:else}
 					<span class="text-sm font-bold opacity-80">{data.isFuture ? '公開日をお楽しみに。' : 'いま執筆中です。もう少しお待ちください。'}</span>

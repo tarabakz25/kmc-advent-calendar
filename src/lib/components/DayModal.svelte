@@ -2,10 +2,10 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { CALENDAR_YEAR, GENRES, genreOf, TITLE_MAX, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
+	import { CALENDAR_YEAR, GENRES, genreOf, isLocked, TITLE_MAX, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
 	import { colorOf, colorValues, pad, STATUS_LABEL, statusOf, weekdayEn } from '#lib/design.ts';
 
-	let { day, entry, onclose }: { day: number; entry: PublicEntry | undefined; onclose: () => void } = $props();
+	let { day, entry, today, onclose }: { day: number; entry: PublicEntry | undefined; today: string; onclose: () => void } = $props();
 
 	let closing = $state(false);
 	let editing = $state(false);
@@ -15,8 +15,11 @@
 	let closeBtn = $state<HTMLButtonElement>();
 
 	const colors = $derived(colorValues(colorOf(day)));
-	const status = $derived(statusOf(entry));
+	const status = $derived(statusOf(entry, today));
 	const genre = $derived(genreOf(entry?.genre));
+	// 公開日までは、本人の記事でもリンクにしない。
+	const locked = $derived(isLocked(day, today));
+	const readable = $derived(!locked && !!entry?.url);
 	const dateLabel = $derived(`${CALENDAR_YEAR}.12.${pad(day)} ${weekdayEn(day)}（${weekdayOf(day)}）`);
 	const joinHref = $derived(`/join?day=${day}${page.url.search.replace(/^\?/, '&')}`);
 
@@ -69,20 +72,20 @@
 			<span class="flex flex-col gap-2.5">
 				{#if genre}<span class="gchip" style="--g: {genre.color}">{genre.label}</span>{/if}
 				<span class="mt-name">{entry.author}</span>
-				{#if entry.url}
+				{#if readable}
 					<a class="mt-title" href={entry.url} target="_blank" rel="noopener noreferrer">{entry.title}</a>
 				{:else}
 					<span class="mt-title">{entry.title}</span>
 				{/if}
 				<span class="mt-2.5 flex flex-wrap gap-2.5">
-					{#if entry.url}
+					{#if readable}
 						<a class="btn mt-yes" href={entry.url} target="_blank" rel="noopener noreferrer"
 							>記事を読む<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"
 								><path d="M5 11L11 5M6 5h5v5"></path></svg
 							></a
 						>
 					{:else if !entry.mine}
-						<span class="mt-note">公開日をお楽しみに。</span>
+						<span class="mt-note">{locked ? '公開日をお楽しみに。' : 'いま執筆中です。もう少しお待ちください。'}</span>
 					{/if}
 					{#if entry.mine && !editing}
 						<button class="btn mt-no" onclick={startEdit}>編集する</button>

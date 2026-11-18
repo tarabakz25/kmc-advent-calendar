@@ -1,4 +1,4 @@
-import { CALENDAR_YEAR, phaseOf, type PublicEntry } from './calendar.ts';
+import { CALENDAR_YEAR, isLocked, phaseOf, type PublicEntry } from './calendar.ts';
 
 /** アクセントカラー（コーラル）。 */
 export const ACCENT = '#F06A55';
@@ -44,12 +44,12 @@ export const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
  * 空き / 予約済み / 登録済み（記事リンクあり）。
- * 他の人の URL は公開日まで届かない（loadEntries が null にする）ので、公開日前は「予約済み」に見える。
+ * 公開日前は、URL が登録済みでも（本人が見ても）「予約済み」として見せる。
  */
 export type SlotStatus = 'open' | 'res' | 'done';
-export function statusOf(entry: PublicEntry | undefined): SlotStatus {
+export function statusOf(entry: PublicEntry | undefined, today: string): SlotStatus {
 	if (!entry) return 'open';
-	return entry.url ? 'done' : 'res';
+	return entry.url && !isLocked(entry.day, today) ? 'done' : 'res';
 }
 export const STATUS_LABEL: Record<SlotStatus, string> = { open: '空き', res: '予約済み', done: '登録済み' };
 
