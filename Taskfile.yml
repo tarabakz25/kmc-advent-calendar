@@ -1,0 +1,12 @@
+version: '3'
+
+tasks:
+  deploy:
+    desc: 本番をデプロイ・更新する（git pull → ビルド → マイグレーション → 起動）
+    cmds:
+      - ./deploy.sh
+
+  stop:
+    desc: 本番を止める（アプリ・Slack 通知・トンネル・DB。DB のデータは残る）
+    cmds:
+      - docker compose down
