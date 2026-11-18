@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import favicon from '#lib/assets/favicon.svg';
 	import SiteNav from '#lib/components/SiteNav.svelte';
+	import Loading from '#lib/components/Loading.svelte';
 	import type { LayoutProps } from './$types';
 
 	let { data, children }: LayoutProps = $props();
@@ -41,3 +42,5 @@
 {/if}
 
 {@render children()}
+
+<Loading />

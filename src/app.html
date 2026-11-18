@@ -4,6 +4,13 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// 初回ローディングは 1 セッションに 1 回だけ。描画前に判定して一瞬のチラつきを防ぐ。
+			try {
+				if (sessionStorage.getItem('kmc-advent-loaded'))
+					document.documentElement.classList.add('ld-skip');
+			} catch (e) {}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">
