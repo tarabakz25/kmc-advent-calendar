@@ -3,7 +3,9 @@ FROM oven/bun:1
 WORKDIR /app
 
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+# 同時接続数を絞る。既定(48)だと Docker/Colima の VM ネットワークで接続が落ち、
+# bun がバックオフ付きで再試行し続けて 2 分以上かかることがある（絞ると数秒で終わる）。
+RUN bun install --frozen-lockfile --network-concurrency=16
 
 COPY . .
 # ビルド時にはDBへつながないので、ダミーの値でよい（実際の値は起動時に環境変数で渡す）。
