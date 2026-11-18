@@ -24,11 +24,13 @@ bun run dev              # http://localhost:5173
 サーバーに Docker が入っていれば、これだけで動きます。
 
 ```sh
-git clone <このリポジトリ> && cd kmc-advent-calendar
-cp .env.example .env
+git clone https://github.com/tarabakz25/kmc-advent-calendar.git && cd kmc-advent-calendar
+./deploy.sh
 ```
 
-`.env` を本番用に編集します。
+初回は公開URLと Google の OAuth クライアントID/シークレットを聞かれ、`.env` を作ります(`BETTER_AUTH_SECRET` と DB のパスワードは自動生成)。そのあと DB 起動 → マイグレーション → アプリ起動(ポート3000)まで行います。**更新するときも `./deploy.sh` を実行するだけ**です(`git pull` からやり直します)。
+
+手作業でやる場合は `cp .env.example .env` して、`.env` を本番用に編集します。
 
 | 変数 | 内容 |
 | --- | --- |
