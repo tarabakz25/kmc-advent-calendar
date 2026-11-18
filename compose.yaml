@@ -1,0 +1,36 @@
+# 本番（学内サーバー）用。  起動: docker compose up -d --build
+# 開発でDBだけ欲しいとき:     docker compose up -d db
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      # コンテナ内からは localhost ではなく db サービスにつなぐ。
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/kmc_advent
+    ports:
+      - '3000:3000'
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: kmc_advent
+    ports:
+      # 開発用に手元からつなぐための公開。サーバーでは 127.0.0.1 だけに絞っている。
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d kmc_advent']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  db-data:

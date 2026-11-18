@@ -1,0 +1,466 @@
+@import 'tailwindcss';
+
+/*
+ * デザイン: クリーム地 × パイン（深緑）× コーラル。Space Grotesk + Noto Sans JP。
+ * Claude Design のキャンバス「Advent Calendar 2026」を移植したもの。
+ */
+@theme {
+	--font-sans: 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', Meiryo,
+		system-ui, sans-serif;
+	--font-display: 'Space Grotesk', 'Noto Sans JP', sans-serif;
+
+	--color-cream: #f3eee6;
+	--color-cream-dark: #e6dfd3;
+	--color-line: #dcd5c9;
+	--color-pine: #0f3b3a;
+	--color-pine-dark: #0a2928;
+	--color-night: #0b2a29;
+	--color-mint: #cfe3d3;
+	--color-coral: #f06a55;
+	--color-amber: #e8b04a;
+	--color-ink: #141414;
+	--color-muted: #5a5347;
+	--color-warn: #a3321f;
+}
+
+:root {
+	--accent: var(--color-coral);
+}
+
+html {
+	scroll-behavior: smooth;
+}
+body {
+	margin: 0;
+	background: var(--color-cream);
+	color: var(--color-ink);
+	font-family: var(--font-sans);
+	-webkit-font-smoothing: antialiased;
+}
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+a {
+	color: var(--color-pine);
+}
+a:hover {
+	color: var(--color-pine-dark);
+}
+::selection {
+	background: rgb(240 106 85 / 0.3);
+}
+:focus-visible {
+	outline: 3px solid var(--color-ink);
+	outline-offset: 3px;
+}
+.font-display {
+	font-family: var(--font-display);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+}
+
+/* ───── ヘッダー ───── */
+.gh {
+	background: var(--color-night);
+}
+.gh-in {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 20px 24px;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+}
+.gh-brand {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 16px;
+	letter-spacing: 0.06em;
+	color: var(--color-cream);
+	text-decoration: none;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+}
+.gh-brand:hover {
+	color: var(--color-mint);
+}
+.gh-links {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+}
+.gh-link {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 14px;
+	color: var(--color-cream);
+	text-decoration: none;
+	padding: 0 16px;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	border-radius: 99px;
+	transition: background 0.2s;
+}
+.gh-link:hover {
+	background: rgb(243 238 230 / 0.12);
+	color: var(--color-cream);
+}
+.gh-link[aria-current='page'] {
+	box-shadow: inset 0 0 0 1.5px rgb(243 238 230 / 0.55);
+}
+.gh-cta {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 14px;
+	color: #1b1b1b;
+	background: var(--accent);
+	text-decoration: none;
+	padding: 0 20px;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	border-radius: 99px;
+	margin-left: 4px;
+	transition:
+		transform 0.2s,
+		filter 0.2s;
+}
+.gh-cta:hover {
+	color: #1b1b1b;
+	transform: translateY(-2px);
+	filter: brightness(1.06);
+}
+.gh-av {
+	width: 44px;
+	height: 44px;
+	border-radius: 50%;
+	border: 1.5px solid var(--color-cream);
+	background: transparent;
+	color: var(--color-cream);
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	margin-left: 4px;
+	overflow: hidden;
+	text-decoration: none;
+	transition:
+		background 0.2s,
+		color 0.2s,
+		box-shadow 0.2s;
+}
+.gh-av:hover {
+	background: var(--color-cream);
+	color: var(--color-night);
+	box-shadow: 0 0 0 4px rgb(243 238 230 / 0.2);
+}
+
+/* ───── ボタン・フォーム ───── */
+.btn {
+	font: inherit;
+	font-weight: 700;
+	font-size: 14px;
+	min-height: 46px;
+	padding: 0 20px;
+	border-radius: 4px;
+	border: 0;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	text-decoration: none;
+	transition:
+		transform 0.15s,
+		background 0.2s,
+		opacity 0.2s;
+}
+.btn:active {
+	transform: translateY(1px);
+}
+.btn:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+.btn-main {
+	background: var(--color-pine);
+	color: var(--color-cream);
+}
+.btn-main:hover {
+	background: var(--color-pine-dark);
+	color: var(--color-cream);
+}
+.btn-ghost {
+	background: transparent;
+	color: var(--color-pine);
+	border: 1.5px solid var(--color-pine);
+}
+.btn-ghost:hover {
+	background: var(--color-cream-dark);
+	color: var(--color-pine);
+}
+.btn-warn {
+	background: transparent;
+	color: var(--color-warn);
+	padding: 0 4px;
+}
+.btn-warn:hover {
+	text-decoration: underline;
+}
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+.field > label,
+.field > .field-label {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--color-pine);
+}
+.field input {
+	font: inherit;
+	font-size: 16px;
+	min-height: 50px;
+	padding: 0 16px;
+	border: 1.5px solid #b9b1a3;
+	border-radius: 4px;
+	background: #fff;
+	color: var(--color-ink);
+	transition:
+		border-color 0.2s,
+		box-shadow 0.2s;
+}
+.field input:focus {
+	outline: none;
+	border-color: var(--color-pine);
+	box-shadow: 0 0 0 3px rgb(15 59 58 / 0.18);
+}
+.hint {
+	font-size: 12px;
+	color: var(--color-muted);
+}
+.err {
+	font-size: 13px;
+	font-weight: 700;
+	color: var(--color-warn);
+}
+
+/* ジャンル */
+.gchip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	padding: 0 11px;
+	border-radius: 99px;
+	background: #fff;
+	box-shadow: inset 0 0 0 1.5px var(--g);
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--color-ink);
+	white-space: nowrap;
+	align-self: flex-start;
+}
+.gchip::before {
+	content: '';
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--g);
+}
+.gopt {
+	font: inherit;
+	font-size: 14px;
+	font-weight: 700;
+	min-height: 44px;
+	padding: 0 16px;
+	border-radius: 99px;
+	border: 0;
+	background: #fff;
+	color: var(--color-ink);
+	box-shadow: inset 0 0 0 1.5px var(--color-line);
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	transition:
+		background 0.2s,
+		box-shadow 0.2s,
+		transform 0.15s;
+}
+.gopt::before {
+	content: '';
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: var(--g);
+}
+.gopt:hover {
+	box-shadow: inset 0 0 0 1.5px var(--g);
+	transform: translateY(-1px);
+}
+.gopt[aria-checked='true'] {
+	background: var(--g);
+	box-shadow: none;
+}
+.gopt[aria-checked='true']::before {
+	background: #fff;
+}
+
+/* タイルの色 */
+.c-pine {
+	background: var(--color-pine);
+	color: var(--color-cream);
+}
+.c-mint {
+	background: var(--color-mint);
+	color: var(--color-pine);
+}
+.c-coral {
+	background: var(--accent);
+	color: #1b1b1b;
+}
+.c-paper {
+	background: #fff;
+	color: var(--color-pine);
+}
+
+/* ステータスバッジ */
+.stb {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	height: 24px;
+	padding: 0 9px;
+	border-radius: 99px;
+	font-family: var(--font-display);
+	font-size: 11px;
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	white-space: nowrap;
+	flex: none;
+}
+.stb-open {
+	border: 1.5px dashed currentColor;
+	background: transparent;
+}
+.stb-res {
+	background: var(--color-amber);
+	color: #1b1b1b;
+}
+.stb-done {
+	background: var(--color-ink);
+	color: var(--color-cream);
+	box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.35);
+}
+
+/* ページ切り替え */
+.pagein {
+	animation: pagein 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes pagein {
+	from {
+		opacity: 0;
+		transform: translateY(14px);
+	}
+}
+.fadein {
+	animation: fadein 0.4s ease-out;
+}
+@keyframes fadein {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+}
+
+/* 背景の飾り（ドット・円・波） */
+.content {
+	position: relative;
+	overflow-x: clip;
+}
+.content > *:not(.bgdeco) {
+	position: relative;
+	z-index: 1;
+}
+.bgdeco {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: -200px;
+	width: calc(100% + 400px);
+	height: 100%;
+	pointer-events: none;
+	z-index: 0;
+}
+.bd-spin {
+	animation: bdspin 90s linear infinite;
+}
+@keyframes bdspin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+.bd-tw {
+	animation: bdtw 9s ease-in-out infinite;
+}
+@keyframes bdtw {
+	0%,
+	100% {
+		transform: rotate(0) scale(1);
+		opacity: 1;
+	}
+	50% {
+		transform: rotate(45deg) scale(0.7);
+		opacity: 0.4;
+	}
+}
+
+/* 雪 */
+.flake {
+	position: absolute;
+	top: -12px;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--color-cream);
+	opacity: 0.7;
+	animation: fall linear infinite;
+}
+.flake:nth-child(1) { left: 8%; animation-duration: 9s; }
+.flake:nth-child(2) { left: 22%; animation-duration: 12s; animation-delay: -4s; width: 4px; height: 4px; }
+.flake:nth-child(3) { left: 37%; animation-duration: 10s; animation-delay: -7s; }
+.flake:nth-child(4) { left: 51%; animation-duration: 14s; animation-delay: -2s; width: 3px; height: 3px; }
+.flake:nth-child(5) { left: 64%; animation-duration: 11s; animation-delay: -9s; }
+.flake:nth-child(6) { left: 78%; animation-duration: 13s; animation-delay: -5s; width: 4px; height: 4px; }
+.flake:nth-child(7) { left: 90%; animation-duration: 9.5s; animation-delay: -1s; }
+.flake:nth-child(8) { left: 45%; animation-duration: 16s; animation-delay: -11s; width: 3px; height: 3px; }
+@keyframes fall {
+	0% { transform: translateY(0) translateX(0); }
+	50% { transform: translateY(170px) translateX(12px); }
+	100% { transform: translateY(340px) translateX(-6px); }
+}
+
+.site-footer {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 12px;
+	padding-top: 20px;
+	border-top: 1.5px solid var(--color-pine);
+	font-size: 12px;
+	color: var(--color-muted);
+}
