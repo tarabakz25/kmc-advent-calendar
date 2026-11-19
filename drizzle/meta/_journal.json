@@ -29,6 +29,13 @@
       "when": 1794989958014,
       "tag": "0003_chilly_clint_barton",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795085866698,
+      "tag": "0004_colorful_shatterstar",
+      "breakpoints": true
     }
   ]
 }

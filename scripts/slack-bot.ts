@@ -1,5 +1,6 @@
 /**
- * その日の記事が公開されたら Slack に投稿する常駐ワーカー（Docker で動かす場合）。
+ * Slack に投稿する常駐ワーカー（Docker で動かす場合）。記事公開のお知らせ、
+ * 毎朝の日次メッセージ（カウントダウン・明日の予告・空き枠の募集）、URL 未登録のリマインドを送る。
  * Vercel では常駐できないので、代わりに Cron（/api/cron/slack）が同じ処理を呼ぶ。
  *
  *   bun scripts/slack-bot.ts           # 常駐（5分ごとに確認）
@@ -13,7 +14,7 @@
  */
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
-import { notifyPublished, postMessage, slackConfigFrom } from '../src/lib/server/slack.ts';
+import { notifyAll, postMessage, slackConfigFrom } from '../src/lib/server/slack.ts';
 import { SLACK_TEMPLATES } from '../src/lib/server/slack-templates.ts';
 
 const INTERVAL_MS = 5 * 60_000;
@@ -39,7 +40,7 @@ const client = postgres(process.env.DATABASE_URL ?? '', { max: 2, prepare: false
 const db = drizzle(client);
 
 if (args.has('--once')) {
-	await notifyPublished(db, config);
+	await notifyAll(db, config);
 	await client.end();
 	process.exit(0);
 }
@@ -47,7 +48,7 @@ if (args.has('--once')) {
 console.log(`[slack] 起動しました（${config.postHour}時(JST)以降、5分ごとに確認）`);
 for (;;) {
 	try {
-		await notifyPublished(db, config);
+		await notifyAll(db, config);
 	} catch (err) {
 		console.error('[slack]', err);
 	}
