@@ -21,11 +21,7 @@
 		{#if viewer}
 			<UserMenu name={viewer.name} image={viewer.image} />
 		{:else}
-			<a href={loginHref} class="gh-av" aria-label="ログイン" title="ログイン">
-				<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"
-					><circle cx="12" cy="8.5" r="3.8"></circle><path d="M4.5 20c1.4-3.6 4.3-5.4 7.5-5.4s6.1 1.8 7.5 5.4"></path></svg
-				>
-			</a>
+			<a href={loginHref} class="gh-login">ログインする</a>
 		{/if}
 	</span>
 </nav>

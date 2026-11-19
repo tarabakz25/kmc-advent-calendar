@@ -166,6 +166,28 @@ a:hover {
 	color: var(--color-night);
 	box-shadow: 0 0 0 4px rgb(243 238 230 / 0.2);
 }
+/* 未ログイン時はアイコンの代わりに文字のボタンを出す。 */
+.gh-login {
+	font-family: var(--font-display);
+	font-weight: 700;
+	font-size: 14px;
+	color: var(--color-cream);
+	text-decoration: none;
+	padding: 0 20px;
+	min-height: 44px;
+	display: inline-flex;
+	align-items: center;
+	border-radius: 99px;
+	border: 1.5px solid var(--color-cream);
+	margin-left: 4px;
+	transition:
+		background 0.2s,
+		color 0.2s;
+}
+.gh-login:hover {
+	background: var(--color-cream);
+	color: var(--color-night);
+}
 
 /* ───── ボタン・フォーム ───── */
 .btn {
