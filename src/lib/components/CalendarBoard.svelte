@@ -39,6 +39,29 @@
 		e.preventDefault();
 		selected = day;
 	}
+
+	/**
+	 * タイトルをタイルの残りの高さに収まるだけの行数で表示し、溢れた分だけ … にする。
+	 * node は「名前の行 + タイトル」を縦に並べた要素で、タイルの残り高さいっぱいに広がっている。
+	 */
+	function fitTitle(node: HTMLElement) {
+		const update = () => {
+			const ttl = node.lastElementChild as HTMLElement | null;
+			const who = node.firstElementChild as HTMLElement | null;
+			if (!ttl || !who || ttl === who) return;
+			const cs = getComputedStyle(ttl);
+			const lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.45;
+			const gap = parseFloat(getComputedStyle(node).rowGap) || 0;
+			const room = node.clientHeight - who.offsetHeight - gap;
+			const lines = Math.max(1, Math.floor((room + 1) / lh));
+			ttl.style.setProperty('--lines', String(lines));
+		};
+		const ro = new ResizeObserver(update);
+		ro.observe(node);
+		update();
+		document.fonts?.ready.then(update);
+		return { destroy: () => ro.disconnect() };
+	}
 </script>
 
 <div class="content board" class:calfit={fit}>
@@ -92,7 +115,7 @@
 				</span>
 				{#if isToday}<span class="badge">TODAY</span>{/if}
 				{#if entry}
-					<span class="flex min-w-0 flex-col gap-1">
+					<span class="body flex min-w-0 flex-col gap-1" use:fitTitle>
 						<span class="flex min-w-0 items-center gap-[7px]">
 							<Avatar name={entry.author} image={entry.image} class="uav" plain />
 							<span class="who">{entry.author}</span>
@@ -324,13 +347,22 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
+	/* 番号の下の余白いっぱいを名前+タイトルの領域にし、中身は下に寄せる */
+	.body {
+		flex: 1 1 0;
+		min-height: 0;
+		justify-content: flex-end;
+	}
 	.ttl {
+		flex: 0 1 auto;
+		min-height: 0;
 		font-size: 13px;
 		line-height: 1.45;
 		font-weight: 500;
 		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		line-clamp: 2;
+		/* 行数は fitTitle が残りの高さから決める */
+		-webkit-line-clamp: var(--lines, 2);
+		line-clamp: var(--lines, 2);
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}
@@ -425,8 +457,6 @@
 			font-size: 40px;
 		}
 		.calfit .ttl {
-			-webkit-line-clamp: 1;
-			line-clamp: 1;
 			font-size: 12px;
 		}
 		.calfit .who {
