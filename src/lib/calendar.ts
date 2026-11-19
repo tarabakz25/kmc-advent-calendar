@@ -113,8 +113,27 @@ const PLATFORMS: [RegExp, string][] = [
 	[/(^|\.)x\.com$|(^|\.)twitter\.com$/, 'X']
 ];
 
+/** このサイトで書いた記事のページ。`entry.url` にこのパスが入っていれば、サイト内の記事として公開済み。 */
+export function postPath(day: number): string {
+	return `/posts/${day}`;
+}
+
+const POST_PATH = /^\/posts\/(\d{1,2})$/;
+
+/** サイト内の記事（`/posts/N`）か。 */
+export function isPostPath(url: string | null | undefined): boolean {
+	return !!url && POST_PATH.test(url);
+}
+
+/** Slack など、サイトの外に出すときは絶対 URL にする。 */
+export function absoluteUrl(url: string, origin: string | undefined): string {
+	if (!url.startsWith('/') || !origin) return url;
+	return new URL(url, origin).href;
+}
+
 /** URLから掲載先メディア名を推測する。知らないサイトはホスト名をそのまま返す。 */
 export function platformOf(url: string): string {
+	if (isPostPath(url)) return 'KMC ADVENT';
 	try {
 		const host = new URL(url).hostname.toLowerCase();
 		return PLATFORMS.find(([re]) => re.test(host))?.[1] ?? host.replace(/^www\./, '');
@@ -130,8 +149,11 @@ export type EntryInput =
 	| { ok: true; title: string; url: string | null; genre: Genre | null }
 	| { ok: false; message: string };
 
-/** 登録フォームの検証。`javascript:` などを弾くため http(s) だけを許す。 */
-export function validateEntry(rawTitle: string, rawUrl: string, rawGenre = ''): EntryInput {
+/**
+ * 登録フォームの検証。`javascript:` などを弾くため http(s) だけを許す。
+ * `day` を渡したときは、その日のサイト内記事のパス（`/posts/N`）もそのまま通す。
+ */
+export function validateEntry(rawTitle: string, rawUrl: string, rawGenre = '', day?: number): EntryInput {
 	const title = rawTitle.trim();
 	const url = rawUrl.trim();
 	const genre = genreOf(rawGenre.trim())?.key ?? null;
@@ -141,6 +163,7 @@ export function validateEntry(rawTitle: string, rawUrl: string, rawGenre = ''): 
 		return { ok: false, message: `タイトルは${TITLE_MAX}文字以内にしてください。` };
 	}
 	if (!url) return { ok: true, title, url: null, genre };
+	if (day !== undefined && url === postPath(day)) return { ok: true, title, url, genre };
 
 	if (url.length > URL_MAX) return { ok: false, message: 'URLが長すぎます。' };
 	let parsed: URL;

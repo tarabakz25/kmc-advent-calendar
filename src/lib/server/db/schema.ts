@@ -4,7 +4,7 @@ import { user } from './auth.schema';
 
 /**
  * アドベントカレンダーの1日分の枠。
- * 記事そのものは外部メディアにあり、ここには「誰が・どの日に・何を・どこに書くか」だけを持つ。
+ * 記事は外部メディアに書くか、このサイトのエディタで書く（本文は `body`）。
  */
 export const entry = pgTable(
 	'entry',
@@ -18,6 +18,11 @@ export const entry = pgTable(
 		title: text('title').notNull(),
 		/** 記事のURL。予約だけ先にして、書き終わってから登録できるよう null を許す。 */
 		url: text('url'),
+		/**
+		 * サイト内のエディタで書いた本文（Markdown）。外部メディアに書く人は null のまま。
+		 * 「投稿する」と `url` が `/posts/{day}` になり、ほかの記事と同じように公開される。
+		 */
+		body: text('body'),
 		/** 記事のジャンル（`GENRES` のキー）。未選択なら null。 */
 		genre: text('genre'),
 		/** URL が最初に登録された時刻（タイムラインの「投稿順」に使う）。URL を消すと null に戻る。 */

@@ -17,6 +17,9 @@
 	<span class="gh-links">
 		<a href="/calendar{q}" class="gh-link" aria-current={cur('/calendar')}>カレンダー</a>
 		<a href="/articles{q}" class="gh-link" aria-current={cur('/articles')}>記事一覧</a>
+		{#if viewer}
+			<a href="/write{q}" class="gh-link" aria-current={path.startsWith('/write') ? 'page' : undefined}>記事を書く</a>
+		{/if}
 		<a href="/join{q}" class="gh-cta" aria-current={cur('/join')}>参加登録する</a>
 		{#if viewer}
 			<UserMenu name={viewer.name} image={viewer.image} />

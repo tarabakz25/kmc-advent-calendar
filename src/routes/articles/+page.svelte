@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { GENRES, genreOf, isLocked, type Genre } from '#lib/calendar.ts';
+	import { GENRES, genreOf, isLocked, isPostPath, type Genre } from '#lib/calendar.ts';
 	import BgDeco from '#lib/components/BgDeco.svelte';	import { colorOf, pad, weekdayEn } from '#lib/design.ts';
 	import type { PageProps } from './$types';
 
@@ -47,7 +47,7 @@
 				this={href ? 'a' : 'div'}
 				class="card"
 				href={href ?? undefined}
-				target={href ? '_blank' : undefined}
+				target={href && !isPostPath(href) ? '_blank' : undefined}
 				rel={href ? 'noopener noreferrer' : undefined}
 				style="animation-delay: {(i * 0.06).toFixed(2)}s"
 			>

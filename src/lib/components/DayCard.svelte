@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { dayOffset, platformOf, stateOf, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
+	import { dayOffset, isPostPath, platformOf, stateOf, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
 	import Avatar from './Avatar.svelte';
 
 	let {
@@ -25,7 +25,7 @@
 <div id="day-{day}" class="group relative h-full">
 	<a
 		{href}
-		target={external ? '_blank' : undefined}
+		target={external && !isPostPath(entry!.url) ? '_blank' : undefined}
 		rel={external ? 'noopener noreferrer' : undefined}
 		class="relative flex h-full min-h-28 flex-col gap-2 overflow-hidden rounded-b-xl px-2.5 pt-3 pb-2.5 transition-colors duration-300 lg:min-h-0
 			{isToday ? 'bg-gold-400/[0.07]' : highlighted ? 'bg-white/[0.06]' : 'hover:bg-white/[0.04]'}"

@@ -122,7 +122,7 @@ export async function saveEntry(userId: string, day: number, form: FormData) {
 	const rawTitle = String(form.get('title') ?? '');
 	const rawUrl = String(form.get('url') ?? '');
 	const rawGenre = String(form.get('genre') ?? '');
-	const input = validateEntry(rawTitle, rawUrl, rawGenre);
+	const input = validateEntry(rawTitle, rawUrl, rawGenre, day);
 	if (!input.ok) {
 		return fail(400, { message: input.message, day, title: rawTitle, url: rawUrl, genre: rawGenre });
 	}

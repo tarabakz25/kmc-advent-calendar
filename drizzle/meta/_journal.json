@@ -36,6 +36,13 @@
       "when": 1795085866698,
       "tag": "0004_colorful_shatterstar",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1795089115913,
+      "tag": "0005_acoustic_moira_mactaggert",
+      "breakpoints": true
     }
   ]
 }

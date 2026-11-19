@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { CALENDAR_YEAR, GENRES, genreOf, isLocked, TITLE_MAX, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
+	import { CALENDAR_YEAR, GENRES, genreOf, isLocked, isPostPath, TITLE_MAX, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
 	import { colorOf, colorValues, pad, STATUS_LABEL, statusOf, weekdayEn } from '#lib/design.ts';
 	import Avatar from './Avatar.svelte';
 
@@ -77,13 +77,13 @@
 					<span class="mt-name">{entry.author}</span>
 				</span>
 				{#if readable}
-					<a class="mt-title" href={entry.url} target="_blank" rel="noopener noreferrer">{entry.title}</a>
+					<a class="mt-title" href={entry.url} target={isPostPath(entry.url) ? undefined : '_blank'} rel="noopener noreferrer">{entry.title}</a>
 				{:else}
 					<span class="mt-title">{entry.title}</span>
 				{/if}
 				<span class="mt-2.5 flex flex-wrap gap-2.5">
 					{#if readable}
-						<a class="btn mt-yes" href={entry.url} target="_blank" rel="noopener noreferrer"
+						<a class="btn mt-yes" href={entry.url} target={isPostPath(entry.url) ? undefined : '_blank'} rel="noopener noreferrer"
 							>記事を読む<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"
 								><path d="M5 11L11 5M6 5h5v5"></path></svg
 							></a
@@ -93,6 +93,7 @@
 					{/if}
 					{#if entry.mine && !editing}
 						<button class="btn mt-no" onclick={startEdit}>編集する</button>
+						<a class="btn mt-no" href="/write/{day}{page.url.search}">エディタで書く</a>
 					{/if}
 				</span>
 			</span>

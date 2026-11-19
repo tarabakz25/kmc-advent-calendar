@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { DAYS, GENRES, genreOf, platformOf, TITLE_MAX, weekdayOf } from '#lib/calendar.ts';
+	import { DAYS, GENRES, genreOf, isPostPath, platformOf, TITLE_MAX, weekdayOf } from '#lib/calendar.ts';
 	import { colorOf, pad, STATUS_LABEL, statusOf, weekdayEn } from '#lib/design.ts';
 	import type { PageProps } from './$types';
 
@@ -42,7 +42,7 @@
 				<span class="font-display text-[17px] font-bold">{entry.author}</span>
 				<h1 class="m-0 text-[28px] leading-snug font-black">{entry.title}</h1>
 				{#if entry.url && !data.isFuture}
-					<a href={entry.url} target="_blank" rel="noopener noreferrer" class="btn dyes mt-2.5 self-start">{platformOf(entry.url)} で読む ↗</a>
+					<a href={entry.url} target={isPostPath(entry.url) ? undefined : '_blank'} rel="noopener noreferrer" class="btn dyes mt-2.5 self-start">{platformOf(entry.url)} で読む ↗</a>
 				{:else}
 					<span class="text-sm font-bold opacity-80">{data.isFuture ? '公開日をお楽しみに。' : 'いま執筆中です。もう少しお待ちください。'}</span>
 				{/if}

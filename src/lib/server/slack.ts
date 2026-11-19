@@ -14,6 +14,7 @@
 import { and, asc, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import {
+	absoluteUrl,
 	CALENDAR_YEAR,
 	DAYS,
 	dayOffset,
@@ -168,7 +169,8 @@ export function messageOf(a: Article, origin?: string) {
 		day: String(a.day),
 		weekday: weekdayOf(a.day),
 		title: a.title,
-		url: a.url,
+		// サイト内の記事（/posts/N）は絶対 URL にしないと Slack でリンクにならない。
+		url: absoluteUrl(a.url, origin),
 		author: a.author,
 		genre: genreOf(a.genre)?.label ?? '',
 		platform: platformOf(a.url),
@@ -380,7 +382,7 @@ export function completeMessageOf(articles: CompletedArticle[], origin?: string)
 			fill(t.item, {
 				day: String(a.day),
 				title: escape(a.title),
-				url: a.url,
+				url: absoluteUrl(a.url, origin),
 				author: escape(a.author)
 			})
 		);

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { platformOf, type PublicEntry } from '#lib/calendar.ts';
+	import { isPostPath, platformOf, type PublicEntry } from '#lib/calendar.ts';
 	import { flip } from 'svelte/animate';
 	import { fly } from 'svelte/transition';
 	import Avatar from './Avatar.svelte';
@@ -65,7 +65,7 @@
 					></span>
 					<a
 						href={e.url}
-						target="_blank"
+						target={isPostPath(e.url) ? undefined : '_blank'}
 						rel="noopener noreferrer"
 						class="block rounded-xl px-2.5 py-2 transition hover:bg-white/[0.05]"
 						onpointerenter={() => (hovered = e.day)}

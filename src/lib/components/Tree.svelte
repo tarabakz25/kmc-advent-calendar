@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { DAYS, stateOf, type PublicEntry } from '#lib/calendar.ts';
+	import { DAYS, isPostPath, stateOf, type PublicEntry } from '#lib/calendar.ts';
 
 	let {
 		entries,
@@ -133,7 +133,7 @@
 		{@const state = stateOf(entry, o.day, today)}
 		<a
 			href={state === 'published' ? entry!.url! : `/day/${o.day}`}
-			target={state === 'published' ? '_blank' : undefined}
+			target={state === 'published' && !isPostPath(entry!.url) ? '_blank' : undefined}
 			rel={state === 'published' ? 'noopener noreferrer' : undefined}
 			class="ornament state-{state}"
 			style="--d: {1 + o.day * 0.04}s; --t: {(o.day * 0.37) % 3}s"
