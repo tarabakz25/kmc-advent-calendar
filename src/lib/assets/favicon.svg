@@ -1,5 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-	<rect width="64" height="64" rx="14" fill="#0a1030" />
-	<path d="M32 8l5.2 16.8L54 32l-16.8 5.2L32 56l-5.2-18.8L10 32l16.8-7.2z" fill="#f8cf73" />
-	<circle cx="32" cy="32" r="4" fill="#0a1030" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-4 -2 208 208">
+	<rect x="-4" y="-2" width="208" height="208" rx="44" fill="#0b2a29" />
+	<rect x="88" y="168" width="24" height="30" fill="#3AA171" />
+	<path d="M100 88L180 174L20 174Z" fill="#3AA171" />
+	<path d="M100 52L156 120L44 120Z" fill="#3AA171" />
+	<path d="M100 24L134 76L66 76Z" fill="#3AA171" />
+	<g fill="none" stroke="#F3EEE6" stroke-width="5" stroke-linecap="round">
+		<path d="M78 68Q100 78 123 64" />
+		<path d="M56 112Q100 128 145 106" />
+		<path d="M36 164Q100 182 164 156" />
+	</g>
+	<g>
+		<circle cx="100" cy="94" r="9" fill="#f06a55" />
+		<circle cx="74" cy="140" r="9" fill="#F3C65A" />
+		<circle cx="126" cy="138" r="9" fill="#CFE3D3" />
+		<circle cx="100" cy="150" r="9" fill="#f06a55" />
+	</g>
+	<path d="M100 0l6.5 14 15.3 1.7-11.4 10.4 3.1 15.1L100 33.6l-13.5 7.6 3.1-15.1-11.4-10.4 15.3-1.7z" fill="#F3C65A" />
 </svg>
