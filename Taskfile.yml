@@ -6,6 +6,16 @@ tasks:
     cmds:
       - ./deploy.sh
 
+  reload:
+    desc: フロントだけ直したとき用。git pull → アプリを作り直して再起動（DB・マイグレーションには触らない）
+    cmds:
+      - ./deploy.sh --reload
+
+  watch:
+    desc: GitHub に push されたら自動で反映し続ける（フロントだけなら reload、それ以外は deploy）
+    cmds:
+      - ./watch.sh
+
   stop:
     desc: 本番を止める（アプリ・Slack 通知・トンネル・DB。DB のデータは残る）
     cmds:

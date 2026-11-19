@@ -63,7 +63,14 @@ git clone https://github.com/tarabakz25/kmc-advent-calendar.git && cd kmc-advent
 
 初回は公開URLと Google の OAuth クライアントID/シークレットを聞かれ、`.env` を作ります(`BETTER_AUTH_SECRET` と DB のパスワードは自動生成)。そのあと DB 起動 → マイグレーション → アプリ起動(ポート3000)まで行います。**更新するときも `./deploy.sh` を実行するだけ**です(`git pull` からやり直します)。
 
-[Task](https://taskfile.dev/) が入っていれば `task deploy` でも同じことができ、`task stop` で全部止められます(DB のデータは残ります)。
+[Task](https://taskfile.dev/) が入っていれば次のコマンドも使えます。
+
+| コマンド | 内容 |
+| --- | --- |
+| `task deploy` | `./deploy.sh` と同じ(フルデプロイ) |
+| `task reload` | フロントだけ直したとき用。`git pull` してアプリを作り直すだけ(DB・マイグレーションには触らないので速い) |
+| `task watch` | GitHub に push されたら自動で反映し続ける。変更が `src/`・`static/` だけなら reload、それ以外を含めば deploy。tmux の中などで動かしておく |
+| `task stop` | 全部止める(DB のデータは残る) |
 
 手作業でやる場合は `cp .env.example .env` して、`.env` を本番用に編集します。
 

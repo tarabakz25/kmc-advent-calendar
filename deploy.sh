@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # 学内サーバーへのデプロイ・更新を1コマンドで行う。
 #
-#   ./deploy.sh
+#   ./deploy.sh            フルデプロイ（マイグレーション込み）
+#   ./deploy.sh --reload   アプリだけ作り直して再起動（DB・マイグレーションには触らない。フロントだけ直したとき用）
 #
 # 初回: .env を対話式で作り（秘密の値は自動生成）、DB とアプリを起動してマイグレーションまで行う。
 # 2回目以降: git pull → ビルド → マイグレーション → 再起動。.env はそのまま使う。
@@ -10,6 +11,9 @@
 #   ORIGIN=https://advent.example.kamiyama.ac.jp GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... ./deploy.sh
 set -euo pipefail
 cd "$(dirname "$0")"
+
+reload=false
+[[ ${1:-} == --reload ]] && reload=true
 
 say() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 die() { printf '\033[1;31mエラー:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -54,19 +58,24 @@ fi
 say "アプリをビルドしています"
 docker compose build app
 
-say "DB を起動しています"
-docker compose up -d --wait db
+if $reload; then
+	say "アプリと Slack 通知を作り直しています"
+	docker compose up -d --no-deps app slack
+else
+	say "DB を起動しています"
+	docker compose up -d --wait db
 
-say "DB のマイグレーションを実行しています"
-docker compose run --rm --no-deps app bun run db:migrate
+	say "DB のマイグレーションを実行しています"
+	docker compose run --rm --no-deps app bun run db:migrate
 
-say "アプリと Slack 通知を起動しています"
-docker compose up -d app slack
+	say "アプリと Slack 通知を起動しています"
+	docker compose up -d app slack
 
-# .env に TUNNEL_TOKEN があれば Cloudflare Tunnel も起動する
-if grep -qE '^TUNNEL_TOKEN=.+' .env; then
-	say "Cloudflare Tunnel を起動しています"
-	docker compose up -d tunnel
+	# .env に TUNNEL_TOKEN があれば Cloudflare Tunnel も起動する
+	if grep -qE '^TUNNEL_TOKEN=.+' .env; then
+		say "Cloudflare Tunnel を起動しています"
+		docker compose up -d tunnel
+	fi
 fi
 
 # ───── 起動確認 ─────
