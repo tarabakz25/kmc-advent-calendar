@@ -1,4 +1,4 @@
-import { CALENDAR_YEAR, isLocked, phaseOf, type PublicEntry } from './calendar.ts';
+import { CALENDAR_YEAR, DAYS, isLocked, phaseOf, type PublicEntry } from './calendar.ts';
 
 /** アクセントカラー（コーラル）。 */
 export const ACCENT = '#F06A55';
@@ -43,15 +43,28 @@ export function weekdayEn(day: number): string {
 export const pad = (n: number) => String(n).padStart(2, '0');
 
 /**
- * 空き / 予約済み / 登録済み（記事リンクあり）。
- * 公開日前は、URL が登録済みでも（本人が見ても）「予約済み」として見せる。
+ * 未JOIN / 予約済み（URL未登録） / 登録済み（URLあり・公開日前） / 公開済み（URLあり・公開日以降）。
+ * 登録済みでもリンク自体は公開日まで開けない。
  */
-export type SlotStatus = 'open' | 'res' | 'done';
+export type SlotStatus = 'open' | 'res' | 'reg' | 'done';
+export const SLOT_STATUSES: SlotStatus[] = ['open', 'res', 'reg', 'done'];
 export function statusOf(entry: PublicEntry | undefined, today: string): SlotStatus {
 	if (!entry) return 'open';
-	return entry.url && !isLocked(entry.day, today) ? 'done' : 'res';
+	if (!entry.hasUrl) return 'res';
+	return isLocked(entry.day, today) ? 'reg' : 'done';
 }
-export const STATUS_LABEL: Record<SlotStatus, string> = { open: '空き', res: '予約済み', done: '登録済み' };
+export const STATUS_LABEL: Record<SlotStatus, string> = {
+	open: '未JOIN',
+	res: '予約済み',
+	reg: '登録済み',
+	done: '公開済み'
+};
+export function statusCounts(entries: PublicEntry[], today: string): Record<SlotStatus, number> {
+	const byDay = new Map(entries.map((e) => [e.day, e]));
+	const c: Record<SlotStatus, number> = { open: 0, res: 0, reg: 0, done: 0 };
+	for (let d = 1; d <= DAYS; d++) c[statusOf(byDay.get(d), today)]++;
+	return c;
+}
 
 /** ヒーローの大きな数字。開催前は残り日数、開催中は何日目か、終了後は 25。 */
 export function heroStatus(today: string) {

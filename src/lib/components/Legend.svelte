@@ -7,7 +7,8 @@
 	const ITEMS: { key: SlotStatus; note: string }[] = [
 		{ key: 'open', note: '登録できます' },
 		{ key: 'res', note: '記事を準備中' },
-		{ key: 'done', note: '記事リンクあり' }
+		{ key: 'reg', note: '公開日待ち' },
+		{ key: 'done', note: '読めます' }
 	];
 </script>
 

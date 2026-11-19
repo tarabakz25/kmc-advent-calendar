@@ -50,6 +50,8 @@ export type PublicEntry = {
 	title: string;
 	/** 公開日前は本人以外には null（ネタバレ防止）。 */
 	url: string | null;
+	/** 記事URLが登録済みか。公開日前で `url` が隠されていても、ステータス表示のために全員に渡す。 */
+	hasUrl: boolean;
 	author: string;
 	/** 著者のアイコン（Google のプロフィール画像）。 */
 	image: string | null;

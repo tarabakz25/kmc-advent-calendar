@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { CALENDAR_YEAR, DAYS, type PublicEntry } from '#lib/calendar.ts';
-	import { colorOf, heroStatus, pad, shapeOf, STATUS_LABEL, statusOf, type SlotStatus } from '#lib/design.ts';
+	import { colorOf, heroStatus, pad, shapeOf, STATUS_LABEL, statusCounts, statusOf } from '#lib/design.ts';
 	import Avatar from './Avatar.svelte';
 	import BgDeco from './BgDeco.svelte';
 	import DayModal from './DayModal.svelte';
@@ -21,15 +21,7 @@
 	const days = Array.from({ length: DAYS }, (_, i) => i + 1);
 	const byDay = $derived(new Map(entries.map((e) => [e.day, e])));
 	const hero = $derived(heroStatus(today));
-	const counts = $derived(
-		days.reduce<Record<SlotStatus, number>>(
-			(acc, d) => {
-				acc[statusOf(byDay.get(d), today)]++;
-				return acc;
-			},
-			{ open: 0, res: 0, done: 0 }
-		)
-	);
+	const counts = $derived(statusCounts(entries, today));
 
 	let selected = $state<number | null>(null);
 
@@ -70,7 +62,7 @@
 	{#if !fit}
 		<section aria-label="参加状況" class="summary">
 			<div class="flex items-baseline gap-2.5">
-				<span class="font-display text-[56px] leading-none font-bold text-pine">{counts.res + counts.done}</span>
+				<span class="font-display text-[56px] leading-none font-bold text-pine">{DAYS - counts.open}</span>
 				<span class="font-display text-xl font-bold text-muted">/ {DAYS} 枠 埋まっています</span>
 			</div>
 			<Legend {counts} detail />
@@ -109,6 +101,7 @@
 				aria-label="12月{day}日 {entry ? `${entry.author}「${entry.title}」` : '空き枠 — 登録する'}"
 				style="--i: {day}"
 			>
+				{#if entry}<span class="tape" aria-hidden="true"></span>{/if}
 				<span class="flex items-start justify-between gap-2">
 					<span class="num">{pad(day)}</span>
 					<span class="stb stb-{st}" title={STATUS_LABEL[st]}><StatusIcon status={st} /></span>
@@ -174,6 +167,9 @@
 	}
 	.seg-res {
 		background: var(--color-amber);
+	}
+	.seg-reg {
+		background: var(--color-blue);
 	}
 	.seg-done {
 		background: var(--color-ink);
@@ -300,6 +296,49 @@
 		background: #fff;
 		color: var(--color-pine);
 		box-shadow: 0 18px 30px -14px rgb(15 59 58 / 0.35);
+	}
+	/* 埋まっている枠の、ゆっくり流れる斜めストライプ */
+	.tape {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		z-index: 0;
+		background: repeating-linear-gradient(135deg, var(--sc) 0 8px, transparent 8px 16px);
+		background-size: 22.6px 22.6px;
+		animation: wrapmove 8s linear infinite;
+	}
+	@keyframes wrapmove {
+		to {
+			background-position: 22.6px 0;
+		}
+	}
+	.tile:hover .tape {
+		animation-duration: 3s;
+	}
+	.c-pine .tape {
+		--sc: rgb(255 255 255 / 0.035);
+	}
+	.c-mint .tape {
+		--sc: rgb(15 59 58 / 0.035);
+	}
+	.c-coral .tape {
+		--sc: rgb(0 0 0 / 0.035);
+	}
+	.c-paper .tape {
+		--sc: rgb(15 59 58 / 0.025);
+	}
+	.big .tape {
+		background: repeating-linear-gradient(135deg, var(--sc) 0 12px, transparent 12px 24px);
+		background-size: 33.9px 33.9px;
+	}
+	.tile > :not(.tape):not(.badge) {
+		position: relative;
+		z-index: 1;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.tape {
+			animation: none;
+		}
 	}
 	.tile.today {
 		box-shadow: 0 0 0 3px var(--color-ink) inset;

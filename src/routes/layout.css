@@ -18,6 +18,7 @@
 	--color-mint: #cfe3d3;
 	--color-coral: #f06a55;
 	--color-amber: #e8b04a;
+	--color-blue: #3b82c4;
 	--color-ink: #141414;
 	--color-muted: #5a5347;
 	--color-warn: #a3321f;
@@ -398,6 +399,11 @@ a:hover {
 .stb-res {
 	background: var(--color-amber);
 	color: #1b1b1b;
+}
+.stb-reg {
+	background: var(--color-blue);
+	color: #fff;
+	box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.35);
 }
 .stb-done {
 	background: var(--color-ink);

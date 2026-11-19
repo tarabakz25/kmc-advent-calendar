@@ -1,18 +1,12 @@
 <script lang="ts">
-	import { DAYS } from '#lib/calendar.ts';
 	import CalendarBoard from '#lib/components/CalendarBoard.svelte';
 	import Legend from '#lib/components/Legend.svelte';
-	import { statusOf, type SlotStatus } from '#lib/design.ts';
+	import { statusCounts } from '#lib/design.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
-	const counts = $derived.by(() => {
-		const byDay = new Map(data.entries.map((e) => [e.day, e]));
-		const c: Record<SlotStatus, number> = { open: 0, res: 0, done: 0 };
-		for (let d = 1; d <= DAYS; d++) c[statusOf(byDay.get(d), data.today)]++;
-		return c;
-	});
+	const counts = $derived(statusCounts(data.entries, data.today));
 </script>
 
 <svelte:head>

@@ -59,6 +59,7 @@ export async function loadEntries(viewerId: string | undefined, today: string) {
 			title: row.title,
 			// 公開日前のURLは本人以外には送らない。
 			url: visible ? row.url : null,
+			hasUrl: !!row.url,
 			author: row.author,
 			image: row.image ?? null,
 			publishedAt: publishedAtOf(row.day, row.url, row.postedAt, today),
@@ -103,6 +104,7 @@ export function demoEntries(url: URL, today: string): PublicEntry[] | null {
 			day,
 			title: DEMO_TITLES[i % DEMO_TITLES.length],
 			url: dayOffset(day, today) <= 0 ? link : null,
+			hasUrl: true,
 			author: DEMO_NAMES[(i * 5) % DEMO_NAMES.length],
 			image: null,
 			publishedAt: publishedAtOf(day, link, postedAt, today),
