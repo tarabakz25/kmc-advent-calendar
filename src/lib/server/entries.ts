@@ -1,7 +1,9 @@
 import { dev } from '$app/env';
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, type Cookies } from '@sveltejs/kit';
 import { and, eq, sql } from 'drizzle-orm';
 import {
+	CAL_COOKIE,
+	CAL_COOKIE_MAX_AGE,
 	CALENDAR_YEAR,
 	calName,
 	CALENDARS,
@@ -34,6 +36,19 @@ export function calOf(url: URL): number {
 	const cal = parseCal(url.searchParams.get('cal'));
 	if (cal === null) error(404, 'そんなカレンダーはありません');
 	return cal;
+}
+
+/**
+ * トップ・カレンダーページで見せるカレンダー。`?cal=` があればそれを使って覚え直し、
+ * 無ければ前回見たカレンダー（cookie）、それも無ければカレンダー 1。
+ */
+export function viewCalOf(url: URL, cookies: Cookies): number {
+	if (url.searchParams.has('cal')) {
+		const cal = calOf(url);
+		cookies.set(CAL_COOKIE, String(cal), { path: '/', maxAge: CAL_COOKIE_MAX_AGE, httpOnly: false, sameSite: 'lax' });
+		return cal;
+	}
+	return parseCal(cookies.get(CAL_COOKIE)) ?? 1;
 }
 
 /** 読めるようになった時刻。URL 登録時刻と公開日 0 時の遅い方。 */

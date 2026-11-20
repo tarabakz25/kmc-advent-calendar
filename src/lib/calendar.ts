@@ -9,6 +9,13 @@ export const DAYS = 25;
 export const CALENDARS = 2;
 export const CAL_LIST = Array.from({ length: CALENDARS }, (_, i) => i + 1);
 
+/**
+ * 最後に見たカレンダーを覚えておく cookie。トップとカレンダーページは `?cal=` が無ければこれを使う。
+ * タブの切り替えでブラウザ側からも書き換えるので httpOnly にはしない。
+ */
+export const CAL_COOKIE = 'cal';
+export const CAL_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
 /** 画面に出すカレンダーの名前。 */
 export function calName(cal: number): string {
 	return `カレンダー ${cal}`;

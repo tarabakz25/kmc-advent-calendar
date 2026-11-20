@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { CAL_LIST, CALENDAR_YEAR, CALENDARS, calName, DAYS, withCal, type PublicEntry } from '#lib/calendar.ts';
+	import { CAL_COOKIE, CAL_COOKIE_MAX_AGE, CAL_LIST, CALENDAR_YEAR, CALENDARS, calName, DAYS, withCal, type PublicEntry } from '#lib/calendar.ts';
 	import { colorOf, heroStatus, pad, shapeOf, STATUS_LABEL, statusCounts, statusOf } from '#lib/design.ts';
 	import Avatar from './Avatar.svelte';
 	import BgDeco from './BgDeco.svelte';
@@ -68,6 +68,8 @@
 			cur = c;
 			swapping = false;
 			replaceState(withCal(page.url.pathname, c, page.url.search), page.state);
+			// 次にトップやカレンダーページを開いたとき、このカレンダーから見せる。
+			document.cookie = `${CAL_COOKIE}=${c}; path=/; max-age=${CAL_COOKIE_MAX_AGE}; samesite=lax`;
 		}, 180);
 	}
 	$effect(() => () => clearTimeout(swapTimer));
