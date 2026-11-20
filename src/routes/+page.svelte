@@ -3,11 +3,15 @@
 	import CalendarBoard from '#lib/components/CalendarBoard.svelte';
 	import SiteNav from '#lib/components/SiteNav.svelte';
 	import { heroStatus } from '#lib/design.ts';
+	import { isReportOpen } from '#lib/report.ts';
+	import { page } from '$app/state';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 
 	const hero = $derived(heroStatus(data.today));
+	/** 12月26日からは、トップから最終レポートへ入れるようにする。 */
+	const reportOpen = $derived(isReportOpen(data.today));
 
 	// マウスに合わせて、星・雲・山・タイトルを少しずつずらす（パララックス）。
 	let mx = $state(0);
@@ -74,6 +78,12 @@
 		<span class="status">
 			{hero.pre}<span class="status-num">{hero.num}</span>{hero.post}
 		</span>
+		{#if reportOpen}
+			<a class="report-cta" href="/report{page.url.search}">
+				FINAL REPORT を見る
+				<svg width="18" height="12" viewBox="0 0 18 12" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M0 6h15M11 1l5 5-5 5"></path></svg>
+			</a>
+		{/if}
 	</div>
 
 	<svg class="ridge" viewBox="0 0 1440 220" preserveAspectRatio="none" aria-hidden="true" style="transform: {tr(-12)}">
@@ -311,6 +321,28 @@
 			opacity: 0;
 			transform: translateY(16px) scale(0.7);
 		}
+	}
+	.report-cta {
+		display: inline-flex;
+		align-items: center;
+		gap: 10px;
+		min-height: 52px;
+		padding: 0 28px;
+		border-radius: 99px;
+		background: var(--accent);
+		color: #1b1b1b;
+		font-family: var(--font-display);
+		font-size: 15px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-decoration: none;
+		box-shadow: 0 14px 30px -14px rgb(240 106 85 / 0.8);
+		animation: numpop 1s cubic-bezier(0.2, 1.4, 0.3, 1) 1.3s both;
+		transition: transform 0.2s;
+	}
+	.report-cta:hover {
+		color: #1b1b1b;
+		transform: translateY(-2px);
 	}
 	.ridge {
 		position: absolute;
