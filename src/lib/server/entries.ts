@@ -1,13 +1,16 @@
 import { dev } from '$app/env';
-import { fail } from '@sveltejs/kit';
+import { error, fail } from '@sveltejs/kit';
 import { and, eq, sql } from 'drizzle-orm';
 import {
 	CALENDAR_YEAR,
+	calName,
+	CALENDARS,
 	DAYS,
 	dayOffset,
 	dayStartMs,
 	genreOf,
 	GENRES,
+	parseCal,
 	todayInJst,
 	validateEntry,
 	type PublicEntry
@@ -26,6 +29,13 @@ export function resolveToday(url: URL): string {
 	return todayInJst();
 }
 
+/** `?cal=2` でカレンダー 2。無ければカレンダー 1。範囲外なら 404。 */
+export function calOf(url: URL): number {
+	const cal = parseCal(url.searchParams.get('cal'));
+	if (cal === null) error(404, 'そんなカレンダーはありません');
+	return cal;
+}
+
 /** 読めるようになった時刻。URL 登録時刻と公開日 0 時の遅い方。 */
 function publishedAtOf(day: number, url: string | null, postedAt: Date | null, today: string) {
 	if (!url || dayOffset(day, today) > 0) return null;
@@ -37,6 +47,7 @@ function publishedAtOf(day: number, url: string | null, postedAt: Date | null, t
 export async function loadEntries(viewerId: string | undefined, today: string) {
 	const rows = await db
 		.select({
+			cal: entry.cal,
 			day: entry.day,
 			title: entry.title,
 			url: entry.url,
@@ -49,12 +60,13 @@ export async function loadEntries(viewerId: string | undefined, today: string) {
 		.from(entry)
 		.innerJoin(user, eq(entry.userId, user.id))
 		.where(eq(entry.year, CALENDAR_YEAR))
-		.orderBy(entry.day);
+		.orderBy(entry.cal, entry.day);
 
 	return rows.map((row): PublicEntry => {
 		const mine = row.authorId === viewerId;
 		const visible = mine || dayOffset(row.day, today) <= 0;
 		return {
+			cal: row.cal,
 			day: row.day,
 			title: row.title,
 			// 公開日前のURLは本人以外には送らない。
@@ -88,19 +100,22 @@ const DEMO_PLATFORMS = ['https://zenn.dev/x/articles/', 'https://qiita.com/x/ite
 
 /**
  * 開発中だけ `?demo=25` のように付けると、DB を使わず n 日分のダミー記事で表示する。
+ * 25 を超えるとカレンダー 2 に続く（`?demo=30` ならカレンダー 1 が満枠、カレンダー 2 に 5 枠）。
  * `?demo=25&today=2026-12-25` でコンプリート演出を確認できる。
  */
 export function demoEntries(url: URL, today: string): PublicEntry[] | null {
 	const raw = url.searchParams.get('demo');
 	if (!dev || !raw || !/^\d{1,2}$/.test(raw)) return null;
-	const count = Math.min(DAYS, Number(raw));
+	const count = Math.min(DAYS * CALENDARS, Number(raw));
 
 	return Array.from({ length: count }, (_, i): PublicEntry => {
-		const day = i + 1;
+		const cal = Math.floor(i / DAYS) + 1;
+		const day = (i % DAYS) + 1;
 		const link = `${DEMO_PLATFORMS[i % 3]}demo-${day}`;
 		// 一部は前倒しで書き終わっている、という想定で投稿時刻をずらす。
 		const postedAt = new Date(dayStartMs(day) + ((i * 7) % 20) * 3_600_000 - (i % 4 === 0 ? 3 * 86_400_000 : 0));
 		return {
+			cal,
 			day,
 			title: DEMO_TITLES[i % DEMO_TITLES.length],
 			url: dayOffset(day, today) <= 0 ? link : null,
@@ -118,19 +133,20 @@ export function demoEntries(url: URL, today: string): PublicEntry[] | null {
  * 予約・更新。空き枠なら INSERT、自分の枠なら UPDATE、他人の枠なら何もしない。
  * 同時に2人が押しても unique 制約と setWhere でどちらか1人だけが通る。
  */
-export async function saveEntry(userId: string, day: number, form: FormData) {
+export async function saveEntry(userId: string, cal: number, day: number, form: FormData) {
 	const rawTitle = String(form.get('title') ?? '');
 	const rawUrl = String(form.get('url') ?? '');
 	const rawGenre = String(form.get('genre') ?? '');
-	const input = validateEntry(rawTitle, rawUrl, rawGenre, day);
+	const input = validateEntry(rawTitle, rawUrl, rawGenre, day, cal);
 	if (!input.ok) {
-		return fail(400, { message: input.message, day, title: rawTitle, url: rawUrl, genre: rawGenre });
+		return fail(400, { message: input.message, cal, day, title: rawTitle, url: rawUrl, genre: rawGenre });
 	}
 
 	const saved = await db
 		.insert(entry)
 		.values({
 			year: CALENDAR_YEAR,
+			cal,
 			day,
 			userId,
 			title: input.title,
@@ -139,7 +155,7 @@ export async function saveEntry(userId: string, day: number, form: FormData) {
 			postedAt: input.url ? new Date() : null
 		})
 		.onConflictDoUpdate({
-			target: [entry.year, entry.day],
+			target: [entry.year, entry.cal, entry.day],
 			set: {
 				title: input.title,
 				url: input.url,
@@ -154,7 +170,8 @@ export async function saveEntry(userId: string, day: number, form: FormData) {
 
 	if (saved.length === 0) {
 		return fail(409, {
-			message: 'この日はちょうど他の人が予約しました。別の日を選んでください。',
+			message: `${calName(cal)} のこの日はちょうど他の人が予約しました。別の日を選んでください。`,
+			cal,
 			day,
 			title: rawTitle,
 			url: rawUrl,
@@ -166,12 +183,19 @@ export async function saveEntry(userId: string, day: number, form: FormData) {
 	if (input.url && dayOffset(day, todayInJst()) <= 0) {
 		await notifySlack().catch((err) => console.error('[slack]', err));
 	}
-	return { saved: true as const, day, reserved: !input.url };
+	return { saved: true as const, cal, day, reserved: !input.url };
 }
 
 /** 自分の枠だけを取り消す。 */
-export async function cancelEntry(userId: string, day: number) {
+export async function cancelEntry(userId: string, cal: number, day: number) {
 	await db
 		.delete(entry)
-		.where(and(eq(entry.year, CALENDAR_YEAR), eq(entry.day, day), eq(entry.userId, userId)));
+		.where(
+			and(
+				eq(entry.year, CALENDAR_YEAR),
+				eq(entry.cal, cal),
+				eq(entry.day, day),
+				eq(entry.userId, userId)
+			)
+		);
 }

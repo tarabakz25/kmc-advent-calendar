@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { genreOf } from '#lib/calendar.ts';
+	import { CALENDARS, calName, genreOf } from '#lib/calendar.ts';
 	import { pad, weekdayEn } from '#lib/design.ts';
 	import { parse, toView } from '#lib/markdown.ts';
 	import Avatar from '#lib/components/Avatar.svelte';
@@ -70,7 +70,7 @@
 		<div class="hero-in">
 			<div class="hero-day">
 				<span class="hero-num">{pad(post.day)}</span>
-				<span class="hero-date">DEC {pad(post.day)} · {weekdayEn(post.day)} · {data.year}</span>
+				<span class="hero-date">{CALENDARS > 1 ? `CAL ${post.cal} · ` : ''}DEC {pad(post.day)} · {weekdayEn(post.day)} · {data.year}</span>
 			</div>
 			<div class="hero-main">
 				<h1 class="hero-title">{post.title}</h1>
@@ -107,7 +107,7 @@
 					<Markdown view={pv.view} />
 				</div>
 				<div class="foot">
-					<span class="tags">KMC Advent Calendar {data.year} · {pad(post.day)} 日目の記事</span>
+					<span class="tags">KMC Advent Calendar {data.year} · {CALENDARS > 1 ? `${calName(post.cal)} の ` : ''}{pad(post.day)} 日目の記事</span>
 					<span class="flex flex-wrap gap-2">
 						<button class="pill pill-ghost" onclick={copyLink}>リンクをコピー</button>
 						{#if post.mine}<a class="pill pill-pine" href="/write/{post.day}{q}">記事を編集</a>{/if}

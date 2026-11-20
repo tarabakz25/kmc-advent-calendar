@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { DAYS, GENRES, genreOf, isPostPath, platformOf, TITLE_MAX, weekdayOf } from '#lib/calendar.ts';
+	import { CALENDARS, calName, DAYS, GENRES, genreOf, isPostPath, platformOf, TITLE_MAX, weekdayOf, withCal } from '#lib/calendar.ts';
 	import { colorOf, pad, STATUS_LABEL, statusOf, weekdayEn } from '#lib/design.ts';
 	import type { PageProps } from './$types';
 
@@ -10,8 +10,11 @@
 	let submitting = $state(false);
 
 	const entry = $derived(data.entry);
-	const heading = $derived(`12月${data.day}日（${weekdayOf(data.day)}）`);
-	const loginHref = $derived(`/login?redirectTo=${encodeURIComponent(`/day/${data.day}`)}`);
+	const calLabel = $derived(CALENDARS > 1 ? `${calName(data.cal)} ` : '');
+	const heading = $derived(`${calLabel}12月${data.day}日（${weekdayOf(data.day)}）`);
+	const loginHref = $derived(`/login?redirectTo=${encodeURIComponent(withCal(`/day/${data.day}`, data.cal))}`);
+	/** `?/save` だけだと `?cal=` が消えるので付け直す。 */
+	const action = (name: string) => `?/${name}${data.cal === 1 ? '' : `&cal=${data.cal}`}`;
 	const genre = $derived(genreOf(entry?.genre));
 
 	// 失敗したときは入力途中の値を残す。
@@ -26,13 +29,13 @@
 </svelte:head>
 
 <div class="wrap pagein">
-	<a href="/calendar" class="backlink">← カレンダーに戻る</a>
+	<a href={withCal('/calendar', data.cal)} class="backlink">← カレンダーに戻る</a>
 
-	<div class="dtile c-{colorOf(data.day)}">
+	<div class="dtile c-{colorOf(data.day, data.cal)}">
 		<span class="flex items-start justify-between gap-3">
 			<span class="dnum">{pad(data.day)}</span>
 			<span class="flex flex-col items-end gap-2.5 pt-1.5">
-				<span class="font-display text-xs font-bold tracking-[.12em] opacity-80">{data.year}.12.{pad(data.day)} {weekdayEn(data.day)}（{weekdayOf(data.day)}）</span>
+				<span class="font-display text-xs font-bold tracking-[.12em] opacity-80">{CALENDARS > 1 ? `CAL ${data.cal} · ` : ''}{data.year}.12.{pad(data.day)} {weekdayEn(data.day)}（{weekdayOf(data.day)}）</span>
 				<span class="dstatus">{STATUS_LABEL[statusOf(entry ?? undefined, data.today)]}</span>
 			</span>
 		</span>
@@ -61,7 +64,7 @@
 	{:else if !entry || entry.mine}
 		<form
 			method="POST"
-			action="?/save"
+			action={action('save')}
 			class="card"
 			use:enhance={() => {
 				submitting = true;
@@ -112,7 +115,7 @@
 				{#if entry}
 					<button
 						class="btn btn-warn ml-auto"
-						formaction="?/cancel"
+						formaction={action('cancel')}
 						formnovalidate
 						onclick={(e) => {
 							if (!confirm('予約を取り消しますか？')) e.preventDefault();
@@ -124,8 +127,8 @@
 	{/if}
 
 	<nav class="flex justify-between text-sm font-bold">
-		{#if data.day > 1}<a href="/day/{data.day - 1}">← {data.day - 1}日</a>{:else}<span></span>{/if}
-		{#if data.day < DAYS}<a href="/day/{data.day + 1}">{data.day + 1}日 →</a>{/if}
+		{#if data.day > 1}<a href={withCal(`/day/${data.day - 1}`, data.cal)}>← {data.day - 1}日</a>{:else}<span></span>{/if}
+		{#if data.day < DAYS}<a href={withCal(`/day/${data.day + 1}`, data.cal)}>{data.day + 1}日 →</a>{/if}
 	</nav>
 </div>
 

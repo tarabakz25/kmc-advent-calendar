@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { page } from '$app/state';
-	import { DAYS, GENRES, genreOf, TITLE_MAX, validateEntry, weekdayOf } from '#lib/calendar.ts';
+	import CalTabs from '#lib/components/CalTabs.svelte';
+	import { CAL_LIST, CALENDARS, calName, DAYS, GENRES, genreOf, TITLE_MAX, validateEntry, weekdayOf, withCal } from '#lib/calendar.ts';
 	import { colorOf, pad, weekdayEn } from '#lib/design.ts';
 	import type { PageProps } from './$types';
 
@@ -12,6 +13,8 @@
 	let step = $state<1 | 2 | 3 | 4>(data.day ? 2 : 1);
 	// svelte-ignore state_referenced_locally
 	let day = $state<number | null>(data.day);
+	// svelte-ignore state_referenced_locally
+	let cal = $state(data.cal);
 	let draft = $state({ title: '', url: '', genre: '' });
 	let err = $state('');
 	let busy = $state(false);
@@ -20,9 +23,30 @@
 
 	const days = Array.from({ length: DAYS }, (_, i) => i + 1);
 	const LABELS = ['日付を選ぶ', '記事の情報', '投稿'];
-	const dateLabel = $derived(day ? `${data.year}年12月${day}日（${weekdayOf(day)}）` : '');
+	const multi = CALENDARS > 1;
+	const dateLabel = $derived(
+		day ? `${multi ? `${calName(cal)} の ` : ''}${data.year}年12月${day}日（${weekdayOf(day)}）` : ''
+	);
 	const g = $derived(genreOf(draft.genre));
-	const q = $derived(page.url.search.replace(/[?&]day=\d+/, '').replace(/^&/, '?'));
+	/** 開発用の `?today=` などだけを引き継ぐ（日付とカレンダーの指定は外す）。 */
+	const q = $derived.by(() => {
+		const params = new URLSearchParams(page.url.search);
+		params.delete('day');
+		params.delete('cal');
+		const qs = params.toString();
+		return qs ? `?${qs}` : '';
+	});
+	const taken = $derived(data.taken[cal] ?? {});
+	const filled = $derived(
+		Object.fromEntries(CAL_LIST.map((c) => [c, Object.keys(data.taken[c] ?? {}).length])) as Record<number, number>
+	);
+
+	function pickCal(c: number) {
+		if (c === cal) return;
+		cal = c;
+		day = null;
+		err = '';
+	}
 
 	function pick(d: number) {
 		day = d;
@@ -79,6 +103,7 @@
 		};
 	}}
 >
+	<input type="hidden" name="cal" value={cal} />
 	<input type="hidden" name="day" value={day ?? ''} />
 	<input type="hidden" name="title" value={draft.title} />
 	<input type="hidden" name="url" value={draft.url} />
@@ -109,10 +134,18 @@
 						<h2 class="m-0 text-[22px] font-black text-pine">書く日を選んでください</h2>
 						<span class="hint">斜線の日はすでに埋まっています。空いている日を選ぶと、そのまま次に進みます。</span>
 					</div>
+					{#if multi}
+						<div class="flex flex-col gap-2">
+							<CalTabs {filled} cur={cal} onpick={pickCal} label="書くカレンダー" />
+							{#if filled[cal] >= DAYS}
+								<span class="hint">{calName(cal)} はすべて埋まっています。ほかのカレンダーなら同じ日付で参加できます。</span>
+							{/if}
+						</div>
+					{/if}
 					{#if err}<p role="alert" class="err m-0">{err}</p>{/if}
 					<div class="pick" role="radiogroup" aria-label="日付">
 						{#each days as d (d)}
-							{@const who = data.taken[d]}
+							{@const who = taken[d]}
 							<button
 								class="slot"
 								class:slot-sel={day === d}
@@ -120,7 +153,7 @@
 								disabled={Boolean(who)}
 								role="radio"
 								aria-checked={day === d}
-								aria-label="12月{d}日{who ? ` 登録済み ${who}` : ' 空き'}"
+								aria-label="{multi ? `${calName(cal)} ` : ''}12月{d}日{who ? ` 登録済み ${who}` : ' 空き'}"
 							>
 								<span class="slot-num">{pad(d)}</span>
 								<span class="slot-sub">{who ?? (day === d ? '選択中' : weekdayEn(d))}</span>
@@ -177,7 +210,7 @@
 						<button class="back-ic" onclick={() => (step = 2)} aria-label="入力に戻って修正する">
 							<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M11 4L6 9l5 5"></path></svg>
 						</button>
-						<div class="pv-big c-{colorOf(day)}">
+						<div class="pv-big c-{colorOf(day, cal)}">
 							<span class="flex items-start justify-between">
 								<span class="pv-num">{pad(day)}</span>
 								<span class="pv-wd">{weekdayEn(day)}</span>
@@ -206,7 +239,7 @@
 		</div>
 	{:else if day}
 		<section class="fadein done">
-			<div class="done-tile c-{colorOf(day)}">
+			<div class="done-tile c-{colorOf(day, cal)}">
 				<span class="font-display text-7xl leading-none font-bold">{pad(day)}</span>
 				<span class="flex flex-col gap-1">
 					<span class="font-display text-sm font-bold">{data.name}</span>
@@ -225,7 +258,7 @@
 				</p>
 			</div>
 			<div class="flex flex-wrap justify-center gap-2.5">
-				<a class="btn btn-main" href="/calendar{q}">カレンダーで見る</a>
+				<a class="btn btn-main" href={withCal('/calendar', cal, q)}>カレンダーで見る</a>
 				<button class="btn underline underline-offset-4" style="background: transparent; color: var(--color-pine)" onclick={restart}>もう1日登録する</button>
 			</div>
 		</section>

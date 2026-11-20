@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { GENRES, genreOf, isLocked, isPostPath, type Genre } from '#lib/calendar.ts';
+	import { CALENDARS, GENRES, genreOf, isLocked, isPostPath, type Genre } from '#lib/calendar.ts';
 	import BgDeco from '#lib/components/BgDeco.svelte';	import { colorOf, pad, weekdayEn } from '#lib/design.ts';
 	import type { PageProps } from './$types';
 
@@ -10,7 +10,9 @@
 
 	const TABS = [{ key: 'all', label: 'すべて', color: '#0F3B3A' } as const, ...GENRES];
 	const count = (g: Genre | 'all') => data.entries.filter((e) => g === 'all' || e.genre === g).length;
-	const shown = $derived(data.entries.filter((e) => genre === 'all' || e.genre === genre));
+	// 日付順に並べる（同じ日はカレンダー 1 から）。
+	const sorted = $derived([...data.entries].sort((a, b) => a.day - b.day || a.cal - b.cal));
+	const shown = $derived(sorted.filter((e) => genre === 'all' || e.genre === genre));
 	const curLabel = $derived(TABS.find((t) => t.key === genre)!.label);
 </script>
 
@@ -39,7 +41,7 @@
 	</div>
 
 	<div class="list" role="tabpanel" aria-label="{curLabel}の記事">
-		{#each shown as e, i (e.day)}
+		{#each shown as e, i (`${e.cal}-${e.day}`)}
 			{@const g = genreOf(e.genre)}
 			<!-- 公開日前は本人の記事でもリンクにせず「公開待ち」に見せる。 -->
 			{@const href = isLocked(e.day, data.today) ? null : e.url}
@@ -51,8 +53,10 @@
 				rel={href ? 'noopener noreferrer' : undefined}
 				style="animation-delay: {(i * 0.06).toFixed(2)}s"
 			>
-				<div class="card-top c-{colorOf(e.day)}">
-					<span class="card-num">{pad(e.day)}</span><span class="card-date">DEC {pad(e.day)}<br />{weekdayEn(e.day)}</span>
+				<div class="card-top c-{colorOf(e.day, e.cal)}">
+					<span class="card-num">{pad(e.day)}</span><span class="card-date"
+						>{#if CALENDARS > 1}CAL {e.cal}<br />{/if}DEC {pad(e.day)}<br />{weekdayEn(e.day)}</span
+					>
 				</div>
 				<div class="card-body">
 					{#if g}<span class="gchip" style="--g: {g.color}">{g.label}</span>{/if}

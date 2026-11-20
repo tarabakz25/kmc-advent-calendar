@@ -1,4 +1,5 @@
-import { CALENDAR_YEAR, DAYS } from '#lib/calendar.ts';
+import { CALENDAR_YEAR, DAYS, withCal } from '#lib/calendar.ts';
+import { calOf } from '#lib/server/entries.ts';
 import { loadDraft, myDays, savePost } from '#lib/server/posts.ts';
 import { error, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
@@ -9,14 +10,16 @@ function parseDay(raw: string): number {
 	return day;
 }
 
-function loginRedirect(url: URL) {
-	return redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname + url.search)}`);
+/** フォームの送信先（`?/save` など）ではなく、エディタのページに戻す。 */
+function loginRedirect(url: URL, cal: number) {
+	return redirect(303, `/login?redirectTo=${encodeURIComponent(withCal(url.pathname, cal))}`);
 }
 
 export const load: PageServerLoad = async ({ params, locals, url }) => {
 	const day = parseDay(params.day);
-	if (!locals.user) return loginRedirect(url);
-	const draft = await loadDraft(locals.user.id, day);
+	const cal = calOf(url);
+	if (!locals.user) return redirect(303, `/login?redirectTo=${encodeURIComponent(url.pathname + url.search)}`);
+	const draft = await loadDraft(locals.user.id, cal, day);
 	if (!draft) error(403, 'この日はあなたの担当ではありません');
 	return { year: CALENDAR_YEAR, draft, days: await myDays(locals.user.id) };
 };
@@ -24,12 +27,14 @@ export const load: PageServerLoad = async ({ params, locals, url }) => {
 export const actions: Actions = {
 	save: async ({ request, params, locals, url }) => {
 		const day = parseDay(params.day);
-		if (!locals.user) return loginRedirect(url);
-		return savePost(locals.user.id, day, await request.formData(), false);
+		const cal = calOf(url);
+		if (!locals.user) return loginRedirect(url, cal);
+		return savePost(locals.user.id, cal, day, await request.formData(), false);
 	},
 	publish: async ({ request, params, locals, url }) => {
 		const day = parseDay(params.day);
-		if (!locals.user) return loginRedirect(url);
-		return savePost(locals.user.id, day, await request.formData(), true);
+		const cal = calOf(url);
+		if (!locals.user) return loginRedirect(url, cal);
+		return savePost(locals.user.id, cal, day, await request.formData(), true);
 	}
 };

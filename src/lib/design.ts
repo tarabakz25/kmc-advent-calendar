@@ -3,16 +3,42 @@ import { CALENDAR_YEAR, DAYS, isLocked, phaseOf, type PublicEntry } from './cale
 /** アクセントカラー（コーラル）。 */
 export const ACCENT = '#F06A55';
 
-/** 日ごとのタイルの色。カレンダー・参加登録・記事一覧で同じ色を使う。 */
-const COLORS = [
-	'coral', 'pine', 'mint', 'mint', 'coral', 'mint', 'coral', 'coral', 'paper', 'pine',
-	'pine', 'mint', 'coral', 'mint', 'coral', 'pine', 'mint', 'paper', 'pine', 'mint',
-	'paper', 'pine', 'mint', 'paper', 'coral'
-] as const;
-export type TileColor = (typeof COLORS)[number];
+export type TileColor = 'coral' | 'pine' | 'mint' | 'paper';
 
-export function colorOf(day: number): TileColor {
-	return COLORS[day - 1];
+/**
+ * カレンダーごとのタイルの並び。カレンダー・参加登録・記事一覧で同じ色を使う。
+ * `c` は 1〜25 日の色、`s` はベントーグリッドで大きく見せる日の形（6 列 × ちょうど埋まる行数になるよう組んである）。
+ * カレンダーが増えたら順に使い回す。
+ */
+const LAYOUTS: { c: TileColor[]; s: Record<number, string> }[] = [
+	{
+		c: [
+			'coral', 'pine', 'mint', 'mint', 'coral', 'mint', 'coral', 'coral', 'paper', 'pine',
+			'pine', 'mint', 'coral', 'mint', 'coral', 'pine', 'mint', 'paper', 'pine', 'mint',
+			'paper', 'pine', 'mint', 'paper', 'coral'
+		],
+		s: { 2: 'w2', 4: 'h2', 8: 'w2', 10: 'big', 12: 'h2', 16: 'w2', 18: 'h2', 19: 'w2', 25: 'x4' }
+	},
+	{
+		c: [
+			'mint', 'pine', 'mint', 'coral', 'coral', 'pine', 'coral', 'mint', 'pine', 'mint',
+			'pine', 'coral', 'mint', 'coral', 'pine', 'mint', 'pine', 'coral', 'mint', 'pine',
+			'coral', 'mint', 'pine', 'coral', 'pine'
+		],
+		// H  H  01 02 02 03
+		// H  H  04 05 06 03
+		// 07 08 08 05 09 10
+		// 07 08 08 11 12 10
+		// 13 14 15 15 16 17
+		// 18 14 19 20 16 21
+		// 18 22 23 23 24 25
+		s: { 2: 'w2', 3: 'h2', 5: 'h2', 7: 'h2', 8: 'big', 10: 'h2', 14: 'h2', 15: 'w2', 16: 'h2', 18: 'h2', 23: 'w2' }
+	}
+];
+const layoutOf = (cal: number) => LAYOUTS[(cal - 1) % LAYOUTS.length];
+
+export function colorOf(day: number, cal = 1): TileColor {
+	return layoutOf(cal).c[day - 1];
 }
 
 /** モーダルなど、クラスではなく色の値が要るところ用。 */
@@ -30,9 +56,8 @@ export function colorValues(c: TileColor): { bg: string; fg: string } {
 }
 
 /** ベントーグリッドで大きく見せる日。 */
-const SHAPES: Record<number, string> = { 2: 'w2', 4: 'h2', 8: 'w2', 10: 'big', 12: 'h2', 16: 'w2', 18: 'h2', 19: 'w2', 25: 'x4' };
-export function shapeOf(day: number): string {
-	return SHAPES[day] ?? '';
+export function shapeOf(day: number, cal = 1): string {
+	return layoutOf(cal).s[day] ?? '';
 }
 
 const WD_EN = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
@@ -59,6 +84,7 @@ export const STATUS_LABEL: Record<SlotStatus, string> = {
 	reg: '登録済み',
 	done: '公開済み'
 };
+/** 1つのカレンダー分の entries を渡す。 */
 export function statusCounts(entries: PublicEntry[], today: string): Record<SlotStatus, number> {
 	const byDay = new Map(entries.map((e) => [e.day, e]));
 	const c: Record<SlotStatus, number> = { open: 0, res: 0, reg: 0, done: 0 };

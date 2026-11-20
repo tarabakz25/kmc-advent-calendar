@@ -2,6 +2,38 @@
 export const CALENDAR_YEAR = 2026;
 /** 12月1日〜25日 */
 export const DAYS = 25;
+/**
+ * カレンダーの数。1つ目の 25 枠が埋まったら、同じ日付の 25 枠をもう1セット増やす。
+ * もっと増やすときはここを変える（DB の制約は cal >= 1 だけなので、マイグレーションは要らない）。
+ */
+export const CALENDARS = 2;
+export const CAL_LIST = Array.from({ length: CALENDARS }, (_, i) => i + 1);
+
+/** 画面に出すカレンダーの名前。 */
+export function calName(cal: number): string {
+	return `カレンダー ${cal}`;
+}
+
+/**
+ * `?cal=` の値を読む。無ければカレンダー 1。範囲外や数字でなければ null（ページ側で 404 にする）。
+ */
+export function parseCal(raw: string | null | undefined): number | null {
+	if (raw === null || raw === undefined || raw === '') return 1;
+	const cal = /^\d$/.test(raw) ? Number(raw) : NaN;
+	return cal >= 1 && cal <= CALENDARS ? cal : null;
+}
+
+/**
+ * `path` に `?cal=` を付ける。カレンダー 1 は今までどおり付けない。
+ * `search` を渡すと、その他のクエリ（開発用の `?today=` など）を引き継ぐ。
+ */
+export function withCal(path: string, cal: number, search = ''): string {
+	const params = new URLSearchParams(search);
+	if (cal === 1) params.delete('cal');
+	else params.set('cal', String(cal));
+	const qs = params.toString();
+	return qs ? `${path}?${qs}` : path;
+}
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'] as const;
 
@@ -46,6 +78,8 @@ export function phaseOf(today: string): Phase {
 
 /** 画面に渡す1日分の登録内容。メールアドレスなどは含めない。 */
 export type PublicEntry = {
+	/** どのカレンダーの枠か（1 始まり）。 */
+	cal: number;
 	day: number;
 	title: string;
 	/** 公開日前は本人以外には null（ネタバレ防止）。 */
@@ -82,11 +116,10 @@ export function dayStartMs(day: number): number {
 	return Date.UTC(CALENDAR_YEAR, 11, day) - 9 * 3_600_000;
 }
 
-/** 25日分すべての記事が公開された状態。 */
+/** カレンダー 1 の 25 日分すべての記事が公開された状態。 */
 export function isComplete(entries: PublicEntry[], today: string): boolean {
-	return (
-		entries.length === DAYS && entries.every((e) => stateOf(e, e.day, today) === 'published')
-	);
+	const first = entries.filter((e) => e.cal === 1);
+	return first.length === DAYS && first.every((e) => stateOf(e, e.day, today) === 'published');
 }
 
 /** 状態の導出。表示側はこれだけを見て出し分ける。 */
@@ -113,12 +146,15 @@ const PLATFORMS: [RegExp, string][] = [
 	[/(^|\.)x\.com$|(^|\.)twitter\.com$/, 'X']
 ];
 
-/** このサイトで書いた記事のページ。`entry.url` にこのパスが入っていれば、サイト内の記事として公開済み。 */
-export function postPath(day: number): string {
-	return `/posts/${day}`;
+/**
+ * このサイトで書いた記事のページ。`entry.url` にこのパスが入っていれば、サイト内の記事として公開済み。
+ * カレンダー 2 以降は `/posts/5?cal=2`。
+ */
+export function postPath(day: number, cal = 1): string {
+	return withCal(`/posts/${day}`, cal);
 }
 
-const POST_PATH = /^\/posts\/(\d{1,2})$/;
+const POST_PATH = /^\/posts\/(\d{1,2})(\?cal=\d)?$/;
 
 /** サイト内の記事（`/posts/N`）か。 */
 export function isPostPath(url: string | null | undefined): boolean {
@@ -153,7 +189,13 @@ export type EntryInput =
  * 登録フォームの検証。`javascript:` などを弾くため http(s) だけを許す。
  * `day` を渡したときは、その日のサイト内記事のパス（`/posts/N`）もそのまま通す。
  */
-export function validateEntry(rawTitle: string, rawUrl: string, rawGenre = '', day?: number): EntryInput {
+export function validateEntry(
+	rawTitle: string,
+	rawUrl: string,
+	rawGenre = '',
+	day?: number,
+	cal = 1
+): EntryInput {
 	const title = rawTitle.trim();
 	const url = rawUrl.trim();
 	const genre = genreOf(rawGenre.trim())?.key ?? null;
@@ -163,7 +205,7 @@ export function validateEntry(rawTitle: string, rawUrl: string, rawGenre = '', d
 		return { ok: false, message: `タイトルは${TITLE_MAX}文字以内にしてください。` };
 	}
 	if (!url) return { ok: true, title, url: null, genre };
-	if (day !== undefined && url === postPath(day)) return { ok: true, title, url, genre };
+	if (day !== undefined && url === postPath(day, cal)) return { ok: true, title, url, genre };
 
 	if (url.length > URL_MAX) return { ok: false, message: 'URLが長すぎます。' };
 	let parsed: URL;

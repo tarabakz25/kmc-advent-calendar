@@ -86,7 +86,7 @@
 	</svg>
 </section>
 
-<CalendarBoard entries={data.entries} today={data.today} />
+<CalendarBoard entries={data.entries} today={data.today} cal={data.cal} />
 
 <style>
 	.kv {

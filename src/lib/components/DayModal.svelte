@@ -2,11 +2,17 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
-	import { CALENDAR_YEAR, GENRES, genreOf, isLocked, isPostPath, TITLE_MAX, weekdayOf, type PublicEntry } from '#lib/calendar.ts';
+	import { CALENDAR_YEAR, CALENDARS, calName, GENRES, genreOf, isLocked, isPostPath, TITLE_MAX, weekdayOf, withCal, type PublicEntry } from '#lib/calendar.ts';
 	import { colorOf, colorValues, pad, STATUS_LABEL, statusOf, weekdayEn } from '#lib/design.ts';
 	import Avatar from './Avatar.svelte';
 
-	let { day, entry, today, onclose }: { day: number; entry: PublicEntry | undefined; today: string; onclose: () => void } = $props();
+	let {
+		cal = 1,
+		day,
+		entry,
+		today,
+		onclose
+	}: { cal?: number; day: number; entry: PublicEntry | undefined; today: string; onclose: () => void } = $props();
 
 	let closing = $state(false);
 	let editing = $state(false);
@@ -15,14 +21,22 @@
 	let draft = $state({ title: '', url: '', genre: '' });
 	let closeBtn = $state<HTMLButtonElement>();
 
-	const colors = $derived(colorValues(colorOf(day)));
+	const colors = $derived(colorValues(colorOf(day, cal)));
 	const status = $derived(statusOf(entry, today));
 	const genre = $derived(genreOf(entry?.genre));
 	// 公開日までは、本人の記事でもリンクにしない。
 	const locked = $derived(isLocked(day, today));
 	const readable = $derived(!locked && !!entry?.url);
-	const dateLabel = $derived(`${CALENDAR_YEAR}.12.${pad(day)} ${weekdayEn(day)}（${weekdayOf(day)}）`);
-	const joinHref = $derived(`/join?day=${day}${page.url.search.replace(/^\?/, '&')}`);
+	const calPre = $derived(CALENDARS > 1 ? `CAL ${cal} · ` : '');
+	const dateLabel = $derived(`${calPre}${CALENDAR_YEAR}.12.${pad(day)} ${weekdayEn(day)}（${weekdayOf(day)}）`);
+	const joinHref = $derived.by(() => {
+		const params = new URLSearchParams(page.url.search);
+		params.set('day', String(day));
+		params.set('cal', String(cal));
+		return `/join?${params}`;
+	});
+	/** 保存・取り消しの送信先。`?/save` のあとに `&cal=2` を付ける。 */
+	const action = (name: string) => `/day/${day}?/${name}${cal === 1 ? '' : `&cal=${cal}`}`;
 
 	$effect(() => {
 		closeBtn?.focus();
@@ -53,7 +67,7 @@
 <svelte:window {onkeydown} />
 
 <button class="scrim" class:out={closing} onclick={close} aria-label="閉じる" tabindex="-1"></button>
-<div class="sheet" class:out={closing} role="dialog" aria-modal="true" aria-label="12月{day}日の枠">
+<div class="sheet" class:out={closing} role="dialog" aria-modal="true" aria-label="{CALENDARS > 1 ? `${calName(cal)} ` : ''}12月{day}日の枠">
 	<button class="mclose" bind:this={closeBtn} onclick={close} aria-label="閉じる">
 		<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"
 			><path d="M4 4l10 10M14 4L4 14"></path></svg
@@ -93,7 +107,7 @@
 					{/if}
 					{#if entry.mine && !editing}
 						<button class="btn mt-no" onclick={startEdit}>編集する</button>
-						<a class="btn mt-no" href="/write/{day}{page.url.search}">エディタで書く</a>
+						<a class="btn mt-no" href={withCal(`/write/${day}`, cal, page.url.search)}>エディタで書く</a>
 					{/if}
 				</span>
 			</span>
@@ -112,7 +126,7 @@
 	{#if editing && entry?.mine}
 		<form
 			method="POST"
-			action="/day/{day}?/save"
+			action={action('save')}
 			class="mbody fadein"
 			use:enhance={() => {
 				busy = true;
@@ -163,7 +177,7 @@
 				<button class="btn btn-ghost" type="button" onclick={() => (editing = false)}>キャンセル</button>
 				<button
 					class="btn btn-warn ml-auto"
-					formaction="/day/{day}?/cancel"
+					formaction={action('cancel')}
 					formnovalidate
 					disabled={busy}
 					onclick={(e) => {

@@ -6,7 +6,9 @@
 
 	let { data }: PageProps = $props();
 
-	const counts = $derived(statusCounts(data.entries, data.today));
+	// svelte-ignore state_referenced_locally
+	let cal = $state(data.cal);
+	const counts = $derived(statusCounts(data.entries.filter((e) => e.cal === cal), data.today));
 </script>
 
 <svelte:head>
@@ -19,7 +21,7 @@
 		<h1 class="font-display m-0 text-4xl leading-tight font-bold tracking-tight text-pine">Calendar</h1>
 		<Legend {counts} />
 	</div>
-	<CalendarBoard entries={data.entries} today={data.today} fit />
+	<CalendarBoard entries={data.entries} today={data.today} bind:cal fit />
 </div>
 
 <style>

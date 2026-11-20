@@ -43,6 +43,13 @@
       "when": 1795089115913,
       "tag": "0005_acoustic_moira_mactaggert",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795138544234,
+      "tag": "0006_magical_warhawk",
+      "breakpoints": true
     }
   ]
 }

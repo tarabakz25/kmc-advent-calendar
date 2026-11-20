@@ -11,6 +11,8 @@ export const entry = pgTable(
 	{
 		id: serial('id').primaryKey(),
 		year: integer('year').notNull(),
+		/** どのカレンダーの枠か（1 始まり）。1つ目が埋まったら同じ日付の枠をもう1セット足す（`CALENDARS`）。 */
+		cal: integer('cal').notNull().default(1),
 		day: integer('day').notNull(),
 		userId: text('user_id')
 			.notNull()
@@ -20,7 +22,8 @@ export const entry = pgTable(
 		url: text('url'),
 		/**
 		 * サイト内のエディタで書いた本文（Markdown）。外部メディアに書く人は null のまま。
-		 * 「投稿する」と `url` が `/posts/{day}` になり、ほかの記事と同じように公開される。
+		 * 「投稿する」と `url` が `/posts/{day}`（カレンダー 2 以降は `/posts/{day}?cal={cal}`）になり、
+		 * ほかの記事と同じように公開される。
 		 */
 		body: text('body'),
 		/** 記事のジャンル（`GENRES` のキー）。未選択なら null。 */
@@ -36,9 +39,10 @@ export const entry = pgTable(
 			.notNull()
 	},
 	(t) => [
-		// 1日につき1枠。同時に予約されても DB 側で必ず1人に絞る。
-		unique('entry_year_day_unique').on(t.year, t.day),
-		check('entry_day_range', sql`${t.day} between 1 and 25`)
+		// カレンダーごとに1日1枠。同時に予約されても DB 側で必ず1人に絞る。
+		unique('entry_year_cal_day_unique').on(t.year, t.cal, t.day),
+		check('entry_day_range', sql`${t.day} between 1 and 25`),
+		check('entry_cal_range', sql`${t.cal} >= 1`)
 	]
 );
 
