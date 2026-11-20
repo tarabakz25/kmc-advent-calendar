@@ -44,7 +44,8 @@ export const entry = pgTable(
 
 /**
  * Slack に送ったリマインドなどの記録。同じ key は1回しか送らない（二重送信防止）。
- * key の例: `daily:2026-11-20`（日次投稿）, `remind:12:3`（entry 12 の3日前リマインド）
+ * key の例: `daily:2026-11-20`（日次投稿）, `remind:12:3`（entry 12 の3日前リマインド）,
+ * `full:2026`（全枠埋まり）, `complete:2026`（コンプリート）
  */
 export const slackLog = pgTable('slack_log', {
 	key: text('key').primaryKey(),

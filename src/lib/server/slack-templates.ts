@@ -1,7 +1,7 @@
 /**
  * Slack に投稿するメッセージの文面（テンプレート）。
  * 公開のお知らせ（published）・毎朝の日次投稿（daily）・URL 未登録のリマインド（reminder）・
- * コンプリートのお知らせ（complete）がある。
+ * 全枠が埋まったお知らせ（full）・コンプリートのお知らせ（complete）がある。
  * 文言を変えたいときはこのファイルだけ編集すればよい。
  *
  * `{名前}` の部分が実際の値に置き換わる。使える置き換え:
@@ -76,6 +76,28 @@ export const SLACK_TEMPLATES = {
 		text: ':pencil: {author} さん、{when}（12月{day}日({weekday})）はあなたの担当日です！\n記事「{title}」の URL がまだ登録されていません。書き終わったら登録をお願いします。',
 		/** 一番下のリンク。{page} が空なら表示しない。 */
 		footer: '<{page}|URL を登録する>'
+	},
+
+	/**
+	 * 全日程の枠が予約で埋まったときのお知らせ（最終日までに1回だけ）。
+	 * 使える置き換え（上の一覧に加えて）:
+	 *   {count}    枠の数                例: 25
+	 *   {authors}  書く人の数            例: 22
+	 * ラインナップ（item）では {day} {weekday} {title} {author} がその枠のもの。
+	 */
+	full: {
+		/** 一番上の見出し（太字で表示）。 */
+		headline: ':tada: KMC Advent Calendar {year} 全{count}枠が埋まりました！ :tada:',
+		/** 見出しの下の一言。 */
+		thanks: '{authors} 人のみなさん、参加ありがとうございます！ 公開をお楽しみに :christmas_tree:',
+		/** ラインナップはスレッドに流すことを伝える一言。 */
+		threadHint: ':thread: ラインナップはスレッドへ',
+		/** スレッドに流すラインナップの見出し。 */
+		listHeader: ':calendar: KMC Advent Calendar {year} ラインナップ',
+		/** ラインナップの1行（スレッドに流す）。 */
+		item: '12/{day}({weekday})　{title}　by {author}',
+		/** 一番下のリンク。{calendar} が空なら表示しない。 */
+		footer: '<{calendar}|カレンダーを見る>'
 	},
 
 	/**

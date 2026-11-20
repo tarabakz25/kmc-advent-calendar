@@ -11,6 +11,7 @@
  *   bun run slack:test --kind daily --today 2026-11-26     # その日の朝の日次メッセージ（サンプルの予約で）
  *   bun run slack:test --kind daily --today 2026-12-05
  *   bun run slack:test --kind reminder --days-left 3       # URL 未登録リマインド（DM の文面。チャンネルに投稿）
+ *   bun run slack:test --kind full                         # 全枠が埋まったお知らせ（サンプル25枠）
  *   bun run slack:test --kind complete                     # コンプリートのお知らせ（サンプル25記事）
  *
  * 必要な環境変数: SLACK_BOT_TOKEN, SLACK_CHANNEL_ID（--dry-run なら不要）
@@ -24,6 +25,7 @@ import { GENRES, todayInJst } from '../src/lib/calendar.ts';
 import {
 	completeMessageOf,
 	dailyMessageOf,
+	fullMessageOf,
 	messageOf,
 	postWithThread,
 	reminderMessageOf,
@@ -86,6 +88,15 @@ if (opts.kind === 'published') {
 } else if (opts.kind === 'reminder') {
 	const daysLeft = Number(opts['days-left']);
 	message = reminderMessageOf({ day, title: opts.title, author: opts.author, daysLeft }, origin);
+} else if (opts.kind === 'full') {
+	message = fullMessageOf(
+		Array.from({ length: 25 }, (_, i) => ({
+			day: i + 1,
+			title: `サンプル記事 ${i + 1}`,
+			author: `KMC ${(i % 20) + 1}郎`
+		})),
+		origin
+	);
 } else if (opts.kind === 'complete') {
 	message = completeMessageOf(
 		Array.from({ length: 25 }, (_, i) => ({
@@ -97,7 +108,7 @@ if (opts.kind === 'published') {
 		origin
 	);
 } else {
-	console.error('--kind は published / daily / reminder / complete のどれか');
+	console.error('--kind は published / daily / reminder / full / complete のどれか');
 	process.exit(1);
 }
 

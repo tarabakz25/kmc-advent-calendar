@@ -47,7 +47,7 @@ Vercel 上では自動で `@sveltejs/adapter-vercel`（東京リージョン `hn
 
 Slack 通知は、Vercel では常駐できないので次の2つで動きます。
 
-- **Vercel Cron**(`vercel.json`)が毎日 8:00 JST に `/api/cron/slack` を呼び、公開日を迎えた記事の投稿・日次メッセージ・URL 未登録のリマインド・コンプリートのお知らせを送る(Hobby プランでは Cron は1日1回まで)
+- **Vercel Cron**(`vercel.json`)が毎日 8:00 JST に `/api/cron/slack` を呼び、公開日を迎えた記事の投稿・日次メッセージ・URL 未登録のリマインド・全枠が埋まったお知らせ・コンプリートのお知らせを送る(Hobby プランでは Cron は1日1回まで)
 - 公開日を過ぎてから URL が登録されたときは、その場で投稿する
 
 `SLACK_POST_HOUR` を変える場合は、`vercel.json` の `schedule`(UTC)も合わせてください。
@@ -130,6 +130,7 @@ docker compose run --rm app bun run db:migrate     # 初回と、スキーマ更
 - 記事公開のお知らせのほかに、次も送ります(どれも1回だけ。送った記録は `slack_log` テーブル)。
   - **日次メッセージ**(チャンネル): 開始の5日前と前日に「開始まであと 5日！」「いよいよ明日から開始です！」、期間中は毎朝「明日は〇〇さんの『…』です」。明日以降の空き枠があれば一緒に募集します。`bun run slack:test --kind daily --today 2026-11-26 --dry-run` で文面を確認できます
   - **URL 未登録のリマインド**(本人に DM): 担当日の3日前と前日の朝に、記事の URL がまだ登録されていなければ送ります。ログインに使ったメールアドレスで Slack のユーザーを探し、見つからなければチャンネルに名前だけで投稿します。`bun run slack:test --kind reminder --dry-run` で文面を確認できます
+  - **全枠が埋まったお知らせ**(チャンネル): 25枠すべてが予約で埋まったら、次の確認(`SLACK_POST_HOUR` 以降)で投稿し、ラインナップをスレッドに流します。最終日まで・1回だけ。`bun run slack:test --kind full --dry-run` で文面を確認できます
   - **コンプリートのお知らせ**(チャンネル): 最終日の翌朝以降、全日程の記事の URL が揃っていたら投稿し、全記事の一覧をスレッドに流します。最終日より後に揃った場合は、揃った後の朝に投稿します。`bun run slack:test --kind complete --dry-run` で文面を確認できます
 - DM のために `users:read` / `users:read.email` / `im:write` のスコープが必要です。以前のマニフェストで作ったアプリは、Slack API の **OAuth & Permissions** でスコープを追加して **Reinstall to Workspace** してください(トークンは変わりません)。
 - 設定しなければ `slack` コンテナは何もせず待機します。

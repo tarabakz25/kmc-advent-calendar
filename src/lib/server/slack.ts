@@ -4,6 +4,7 @@
  * - notifyPublished: その日の記事が公開されたらチャンネルに投稿する。
  * - notifyDaily: 毎朝チャンネルに「開始まであと N 日」「明日は〇〇さん」と空き枠の募集を投稿する。
  * - notifyReminders: 担当日の3日前・前日に URL が未登録なら本人に DM する。
+ * - notifyFull: 全日程の枠が予約で埋まったらチャンネルに投稿する（ラインナップはスレッドへ）。
  * - notifyComplete: 最終日の翌日以降、全日程の記事が出揃ったらチャンネルに投稿する。
  *
  * - Vercel: Cron（/api/cron/slack）が notifyAll を、URL が登録されたとき（saveEntry）に notifyPublished を呼ぶ。
@@ -361,6 +362,65 @@ export function reminderMessageOf(r: Reminder, origin?: string) {
 	};
 }
 
+/** 行を ITEMS_PER_BLOCK 行ずつの section ブロックにまとめる。 */
+const listBlocks = (lines: string[]) =>
+	Array.from({ length: Math.ceil(lines.length / ITEMS_PER_BLOCK) }, (_, i) => ({
+		type: 'section',
+		text: {
+			type: 'mrkdwn',
+			text: lines.slice(i * ITEMS_PER_BLOCK, (i + 1) * ITEMS_PER_BLOCK).join('\n')
+		}
+	}));
+
+/** 全日程の枠が予約で埋まったときのお知らせを作る。ラインナップはスレッドに流す。 */
+export function fullMessageOf(reservations: Reservation[], origin?: string) {
+	const t = SLACK_TEMPLATES.full;
+	const vars = {
+		year: String(CALENDAR_YEAR),
+		count: String(reservations.length),
+		authors: String(new Set(reservations.map((r) => r.author)).size),
+		calendar: origin ? `${origin}/calendar` : ''
+	};
+	const items = [...reservations]
+		.sort((a, b) => a.day - b.day)
+		.map((r) =>
+			fill(t.item, {
+				day: String(r.day),
+				weekday: weekdayOf(r.day),
+				title: escape(r.title),
+				author: escape(r.author)
+			})
+		);
+	const headline = fill(t.headline, vars);
+	return {
+		text: headline,
+		blocks: [
+			{ type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
+			{ type: 'section', text: { type: 'mrkdwn', text: fill(t.thanks, vars) } },
+			{
+				type: 'context',
+				elements: [
+					{
+						type: 'mrkdwn',
+						text: [t.threadHint, vars.calendar ? fill(t.footer, vars) : '']
+							.filter(Boolean)
+							.join('　')
+					}
+				]
+			}
+		],
+		thread: [
+			{
+				text: fill(t.listHeader, vars),
+				blocks: [
+					{ type: 'section', text: { type: 'mrkdwn', text: `*${fill(t.listHeader, vars)}*` } },
+					...listBlocks(items)
+				]
+			}
+		]
+	} satisfies ThreadedMessage;
+}
+
 /** コンプリートのお知らせに載せる記事。 */
 export type CompletedArticle = { day: number; title: string; url: string; author: string };
 
@@ -386,9 +446,6 @@ export function completeMessageOf(articles: CompletedArticle[], origin?: string)
 				author: escape(a.author)
 			})
 		);
-	const chunks = Array.from({ length: Math.ceil(items.length / ITEMS_PER_BLOCK) }, (_, i) =>
-		items.slice(i * ITEMS_PER_BLOCK, (i + 1) * ITEMS_PER_BLOCK)
-	);
 	const headline = fill(t.headline, vars);
 	return {
 		text: headline,
@@ -416,10 +473,7 @@ export function completeMessageOf(articles: CompletedArticle[], origin?: string)
 				unfurl_media: false,
 				blocks: [
 					{ type: 'section', text: { type: 'mrkdwn', text: `*${fill(t.listHeader, vars)}*` } },
-					...chunks.map((lines) => ({
-						type: 'section',
-						text: { type: 'mrkdwn', text: lines.join('\n') }
-					}))
+					...listBlocks(items)
 				]
 			}
 		]
@@ -530,6 +584,34 @@ export async function notifyReminders(db: Db, config: SlackConfig, now = new Dat
 }
 
 /**
+ * 全日程の枠が予約で埋まったら、そのお知らせを（最終日まで・1回だけ）投稿する。投稿したら true。
+ * 一度送ったあとに取り消し→再予約で埋まり直しても、もう送らない。
+ */
+export async function notifyFull(db: Db, config: SlackConfig, now = new Date()) {
+	if (!isPostTime(config, now)) return false;
+	const today = todayInJst(now);
+	if (dayOffset(DAYS, today) < 0) return false;
+
+	const reservations = await db
+		.select({ day: entry.day, title: entry.title, author: user.name })
+		.from(entry)
+		.innerJoin(user, eq(entry.userId, user.id))
+		.where(eq(entry.year, CALENDAR_YEAR));
+	if (reservations.length < DAYS) return false;
+
+	const key = `full:${CALENDAR_YEAR}`;
+	if (!(await claim(db, key))) return false;
+	try {
+		await postWithThread(config, fullMessageOf(reservations, config.origin));
+		console.log(`[slack] 全枠が埋まったお知らせを投稿しました`);
+		return true;
+	} catch (err) {
+		await unclaim(db, key);
+		throw err;
+	}
+}
+
+/**
  * 最終日の翌日以降、全日程の記事の URL が揃っていたらコンプリートのお知らせを投稿する。投稿したら true。
  * 最終日の後に URL が登録されて揃った場合も、その後の確認で投稿する。
  */
@@ -563,7 +645,7 @@ export async function notifyComplete(db: Db, config: SlackConfig, now = new Date
 	}
 }
 
-/** 公開のお知らせ・日次メッセージ・リマインド・コンプリートをまとめて実行する。1つ失敗しても他は続ける。 */
+/** 公開のお知らせ・日次メッセージ・リマインド・全枠埋まり・コンプリートをまとめて実行する。1つ失敗しても他は続ける。 */
 export async function notifyAll(db: Db, config: SlackConfig, now = new Date()) {
 	const run = async <T>(name: string, fn: () => Promise<T>) => {
 		try {
@@ -577,6 +659,7 @@ export async function notifyAll(db: Db, config: SlackConfig, now = new Date()) {
 		published: await run('published', () => notifyPublished(db, config, now)),
 		daily: await run('daily', () => notifyDaily(db, config, now)),
 		reminders: await run('reminders', () => notifyReminders(db, config, now)),
+		full: await run('full', () => notifyFull(db, config, now)),
 		complete: await run('complete', () => notifyComplete(db, config, now))
 	};
 }
