@@ -81,7 +81,10 @@
 		body.set('body', md);
 		const snap = JSON.stringify([title, genre, md]);
 		try {
-			const res = await fetch(`?/${action}`, {
+			// `?/save` だけだとクエリ全体が置き換わって `?cal=2` などが消え、カレンダー 1 の枠として保存しようとしてしまう。
+			// いまのクエリを残したまま action を付ける。
+			const rest = page.url.searchParams.toString();
+			const res = await fetch(`?/${action}${rest ? `&${rest}` : ''}`, {
 				method: 'POST',
 				body,
 				headers: { 'x-sveltekit-action': 'true' }
