@@ -7,11 +7,14 @@
  *   bun run slack:test --day 12 --title "記事タイトル" --url https://... --author 名前 --genre tech
  *   bun run slack:test --genre none        # ジャンル未選択のときの見た目
  *   bun run slack:test --channel C0123456  # SLACK_CHANNEL_ID 以外のチャンネルに投稿
+ *   bun run slack:test --cal 2             # 2枚目のカレンダーの記事として（reminder / full / complete も --cal を使える）
+ *   bun run slack:test --multi             # 同じ日に両方のカレンダーの記事が公開されたとき（1つのメッセージにまとまる）
  *
  *   bun run slack:test --kind daily --today 2026-11-26     # その日の朝の日次メッセージ（サンプルの予約で）
- *   bun run slack:test --kind daily --today 2026-12-05
+ *   bun run slack:test --kind daily --today 2026-12-05     # 1枚目は奇数日、2枚目は3の倍数の日が埋まったサンプル
  *   bun run slack:test --kind reminder --days-left 3       # URL 未登録リマインド（DM の文面。チャンネルに投稿）
  *   bun run slack:test --kind full                         # 全枠が埋まったお知らせ（サンプル25枠）
+ *   bun run slack:test --kind full --cal 2                 # 2枚目のカレンダーが埋まったとき
  *   bun run slack:test --kind complete                     # コンプリートのお知らせ（サンプル25記事）
  *
  * 必要な環境変数: SLACK_BOT_TOKEN, SLACK_CHANNEL_ID（--dry-run なら不要）
@@ -21,7 +24,7 @@
  * 文面は src/lib/server/slack-templates.ts で変える。
  */
 import { parseArgs } from 'node:util';
-import { GENRES, todayInJst } from '../src/lib/calendar.ts';
+import { CALENDARS, GENRES, todayInJst } from '../src/lib/calendar.ts';
 import {
 	completeMessageOf,
 	dailyMessageOf,
@@ -40,6 +43,8 @@ const { values: opts } = parseArgs({
 		kind: { type: 'string', default: 'published' },
 		today: { type: 'string' },
 		'days-left': { type: 'string', default: '1' },
+		cal: { type: 'string', default: '1' },
+		multi: { type: 'boolean', default: false },
 		channel: { type: 'string' },
 		day: { type: 'string', default: '3' },
 		title: { type: 'string', default: '【テスト投稿】サンプル記事のタイトル' },
@@ -54,6 +59,11 @@ if (!Number.isInteger(day) || day < 1 || day > 25) {
 	console.error('--day は 1〜25 の整数で指定してください');
 	process.exit(1);
 }
+const cal = Number(opts.cal);
+if (!Number.isInteger(cal) || cal < 1 || cal > CALENDARS) {
+	console.error(`--cal は 1〜${CALENDARS} の整数で指定してください`);
+	process.exit(1);
+}
 const genre = opts.genre === 'none' ? null : opts.genre;
 if (genre !== null && !GENRES.some((g) => g.key === genre)) {
 	console.error(`--genre は ${GENRES.map((g) => g.key).join(' / ')} のどれか（未選択は none）`);
@@ -64,15 +74,37 @@ const env = { ...process.env, ...(opts.channel ? { SLACK_CHANNEL_ID: opts.channe
 const config = slackConfigFrom(env);
 const origin = config?.origin ?? (env.ORIGIN?.trim().replace(/\/$/, '') || undefined);
 
-/** --kind daily 用のサンプル予約（奇数日だけ埋まっている）。 */
-const sampleReservations = Array.from({ length: 25 }, (_, i) => i + 1)
-	.filter((d) => d % 2 === 1)
-	.map((d) => ({ day: d, title: `サンプル記事 ${d}`, author: `KMC ${d}郎` }));
+/** --kind daily 用のサンプル予約（1枚目は奇数日、2枚目は3の倍数の日が埋まっている）。 */
+const days = Array.from({ length: 25 }, (_, i) => i + 1);
+const sampleReservations = [
+	...days
+		.filter((d) => d % 2 === 1)
+		.map((d) => ({ cal: 1, day: d, title: `サンプル記事 ${d}`, author: `KMC ${d}郎` })),
+	...(CALENDARS > 1 ? days.filter((d) => d % 3 === 0) : []).map((d) => ({
+		cal: 2,
+		day: d,
+		title: `サンプル記事 2-${d}`,
+		author: `KMC ${d}子`
+	}))
+];
 
 let message: ThreadedMessage & { text: string; blocks: unknown[] };
 if (opts.kind === 'published') {
+	const article = { cal, day, title: opts.title, url: opts.url, author: opts.author, genre };
 	message = messageOf(
-		{ day, title: opts.title, url: opts.url, author: opts.author, genre },
+		opts.multi && CALENDARS > 1
+			? [
+					{ ...article, cal: 1 },
+					{
+						cal: 2,
+						day,
+						title: '【テスト投稿】もう1つのカレンダーの記事',
+						url: 'https://qiita.com/example/items/sample',
+						author: 'KMC 花子',
+						genre: 'design'
+					}
+				]
+			: [article],
 		origin
 	);
 } else if (opts.kind === 'daily') {
@@ -87,14 +119,19 @@ if (opts.kind === 'published') {
 	message = daily;
 } else if (opts.kind === 'reminder') {
 	const daysLeft = Number(opts['days-left']);
-	message = reminderMessageOf({ day, title: opts.title, author: opts.author, daysLeft }, origin);
+	message = reminderMessageOf(
+		{ cal, day, title: opts.title, author: opts.author, daysLeft },
+		origin
+	);
 } else if (opts.kind === 'full') {
 	message = fullMessageOf(
 		Array.from({ length: 25 }, (_, i) => ({
+			cal,
 			day: i + 1,
 			title: `サンプル記事 ${i + 1}`,
 			author: `KMC ${(i % 20) + 1}郎`
 		})),
+		cal,
 		origin
 	);
 } else if (opts.kind === 'complete') {
@@ -105,6 +142,7 @@ if (opts.kind === 'published') {
 			url: `https://zenn.dev/example/articles/sample-${i + 1}`,
 			author: `KMC ${(i % 20) + 1}郎`
 		})),
+		cal,
 		origin
 	);
 } else {

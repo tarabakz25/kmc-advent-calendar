@@ -4,8 +4,9 @@
  * - notifyPublished: その日の記事が公開されたらチャンネルに投稿する。
  * - notifyDaily: 毎朝チャンネルに「開始まであと N 日」「明日は〇〇さん」と空き枠の募集を投稿する。
  * - notifyReminders: 担当日の3日前・前日に URL が未登録なら本人に DM する。
- * - notifyFull: 全日程の枠が予約で埋まったらチャンネルに投稿する（ラインナップはスレッドへ）。
- * - notifyComplete: 最終日の翌日以降、全日程の記事が出揃ったらチャンネルに投稿する。
+ * - notifyFull: カレンダーの全枠が予約で埋まったらチャンネルに投稿する（ラインナップはスレッドへ）。
+ * - notifyComplete: 最終日の翌日以降、カレンダーの全日程の記事が出揃ったらチャンネルに投稿する。
+ *   どちらもカレンダー（cal）ごとに「N枚目のカレンダー」として1回ずつ。
  *
  * - Vercel: Cron（/api/cron/slack）が notifyAll を、URL が登録されたとき（saveEntry）に notifyPublished を呼ぶ。
  * - Docker: scripts/slack-bot.ts が常駐して 5 分ごとに notifyAll を呼ぶ。
@@ -17,13 +18,16 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import {
 	absoluteUrl,
 	CALENDAR_YEAR,
+	CAL_LIST,
+	CALENDARS,
 	DAYS,
 	dayOffset,
 	genreOf,
 	phaseOf,
 	platformOf,
 	todayInJst,
-	weekdayOf
+	weekdayOf,
+	withCal
 } from '../calendar.ts';
 import { entry, slackLog, user } from './db/schema.ts';
 import { SLACK_TEMPLATES } from './slack-templates.ts';
@@ -155,6 +159,8 @@ export function fill(template: string, vars: Record<string, string>) {
 }
 
 export type Article = {
+	/** どのカレンダーの記事か（1 始まり）。 */
+	cal: number;
 	day: number;
 	title: string;
 	url: string;
@@ -162,44 +168,72 @@ export type Article = {
 	genre: string | null;
 };
 
-/** 公開のお知らせメッセージ（chat.postMessage の body）を作る。文面は slack-templates.ts。 */
-export function messageOf(a: Article, origin?: string) {
+/** メッセージに出すカレンダーの名前。カレンダーが1つだけなら空（出さない）。 */
+const calNameOf = (cal: number) => (CALENDARS > 1 ? `${cal}枚目のカレンダー` : '');
+
+/** カレンダーページの URL。`cal` を渡すとそのカレンダーを開く。 */
+const calendarUrl = (origin: string | undefined, cal = 1) =>
+	origin ? `${origin}${withCal('/calendar', cal)}` : '';
+
+/**
+ * 公開のお知らせメッセージ（chat.postMessage の body）を作る。文面は slack-templates.ts。
+ * 同じ日の記事が複数（カレンダーごとに1本ずつ）あれば、1つのメッセージに並べる。
+ */
+export function messageOf(articles: Article[], origin?: string) {
 	const t = SLACK_TEMPLATES.published;
-	const raw: Record<string, string> = {
+	const sorted = [...articles].sort((a, b) => a.cal - b.cal);
+	const first = sorted[0];
+	const cals = new Set(sorted.map((a) => a.cal));
+	const head = {
 		year: String(CALENDAR_YEAR),
-		day: String(a.day),
-		weekday: weekdayOf(a.day),
-		title: a.title,
-		// サイト内の記事（/posts/N）は絶対 URL にしないと Slack でリンクにならない。
-		url: absoluteUrl(a.url, origin),
-		author: a.author,
-		genre: genreOf(a.genre)?.label ?? '',
-		platform: platformOf(a.url),
-		calendar: origin ? `${origin}/calendar` : ''
+		day: String(first.day),
+		weekday: weekdayOf(first.day),
+		calendar: calendarUrl(origin, cals.size === 1 ? first.cal : 1)
 	};
 	// mrkdwn に埋め込む値はエスケープする（URL はリンク記法の中で使うのでそのまま）。
-	const md = Object.fromEntries(
-		Object.entries(raw).map(([k, v]) => [k, k === 'url' || k === 'calendar' ? v : escape(v)])
-	);
+	const toMd = (raw: Record<string, string>) =>
+		Object.fromEntries(
+			Object.entries(raw).map(([k, v]) => [k, k === 'url' || k === 'calendar' ? v : escape(v)])
+		);
 
-	const headline = fill(t.headline, md);
-	// 値が空の項目（ジャンル未選択など）は、置き換え前後で文字が残っていても省く。
-	const meta = t.meta
-		.filter((item) => [...item.matchAll(/\{(\w+)\}/g)].every(([, key]) => raw[key]))
-		.map((item) => fill(item, md))
-		.join(t.separator);
-
-	return {
-		text: fill(t.fallback, { ...raw, headline: fill(t.headline, raw) }),
-		unfurl_links: true,
-		blocks: [
-			{ type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
-			{
+	const items = sorted.map((a) => {
+		const raw: Record<string, string> = {
+			...head,
+			title: a.title,
+			// サイト内の記事（/posts/N）は絶対 URL にしないと Slack でリンクにならない。
+			url: absoluteUrl(a.url, origin),
+			author: a.author,
+			calName: calNameOf(a.cal),
+			genre: genreOf(a.genre)?.label ?? '',
+			platform: platformOf(a.url)
+		};
+		const md = toMd(raw);
+		// 値が空の項目（ジャンル未選択など）は、置き換え前後で文字が残っていても省く。
+		const meta = t.meta
+			.filter((item) => [...item.matchAll(/\{(\w+)\}/g)].every(([, key]) => raw[key]))
+			.map((item) => fill(item, md))
+			.join(t.separator);
+		return {
+			block: {
 				type: 'section',
 				text: { type: 'mrkdwn', text: `*${fill(t.title, md)}*${meta ? `\n${meta}` : ''}` }
 			},
-			...(raw.calendar && t.footer
-				? [{ type: 'context', elements: [{ type: 'mrkdwn', text: fill(t.footer, md) }] }]
+			fallback: fill(t.fallbackItem, raw)
+		};
+	});
+
+	const headline = fill(t.headline, toMd(head));
+	return {
+		text: fill(t.fallback, {
+			headline: fill(t.headline, head),
+			items: items.map((i) => i.fallback).join('\n')
+		}),
+		unfurl_links: true,
+		blocks: [
+			{ type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
+			...items.map((i) => i.block),
+			...(head.calendar && t.footer
+				? [{ type: 'context', elements: [{ type: 'mrkdwn', text: fill(t.footer, head) }] }]
 				: [])
 		]
 	};
@@ -218,7 +252,8 @@ function isPostTime(config: SlackConfig, now: Date) {
 }
 
 /**
- * 公開日を迎えていて、まだ投稿していない記事を投稿する。投稿した件数を返す。
+ * 公開日を迎えていて、まだ投稿していない記事を投稿する。投稿した記事の数を返す。
+ * 同じ日の記事がまとめて見つかったら（カレンダーが複数あるとき）、1つのメッセージにまとめる。
  * 二重投稿は entry.slack_notified_at で防ぐ（同時に呼ばれても1回だけ）。
  */
 export async function notifyPublished(db: Db, config: SlackConfig, now = new Date()) {
@@ -232,6 +267,7 @@ export async function notifyPublished(db: Db, config: SlackConfig, now = new Dat
 	const rows = await db
 		.select({
 			id: entry.id,
+			cal: entry.cal,
 			day: entry.day,
 			title: entry.title,
 			url: entry.url,
@@ -248,25 +284,47 @@ export async function notifyPublished(db: Db, config: SlackConfig, now = new Dat
 				isNull(entry.slackNotifiedAt)
 			)
 		)
-		.orderBy(asc(entry.day));
+		.orderBy(asc(entry.day), asc(entry.cal));
 
+	const byDay = Map.groupBy(rows, (r) => r.day);
 	let posted = 0;
-	for (const row of rows) {
-		// 先に「投稿済み」を取ってから投稿する。取れなければ他のプロセスが投稿済み。
+	for (const [day, group] of byDay) {
+		// 先に「投稿済み」を取ってから投稿する。取れなかった記事は他のプロセスが投稿済み。
 		const claimed = await db
 			.update(entry)
 			.set({ slackNotifiedAt: new Date() })
-			.where(and(eq(entry.id, row.id), isNull(entry.slackNotifiedAt)))
+			.where(
+				and(
+					inArray(
+						entry.id,
+						group.map((r) => r.id)
+					),
+					isNull(entry.slackNotifiedAt)
+				)
+			)
 			.returning({ id: entry.id });
-		if (claimed.length === 0) continue;
+		const ids = new Set(claimed.map((c) => c.id));
+		const articles = group.filter((r) => ids.has(r.id));
+		if (articles.length === 0) continue;
 
 		try {
-			await postMessage(config, messageOf({ ...row, url: row.url! }, config.origin));
-			console.log(`[slack] 12/${row.day}「${row.title}」を投稿しました`);
-			posted++;
+			await postMessage(
+				config,
+				messageOf(
+					articles.map((r) => ({ ...r, url: r.url! })),
+					config.origin
+				)
+			);
+			console.log(
+				`[slack] 12/${day} の ${articles.map((r) => `「${r.title}」`).join('')}を投稿しました`
+			);
+			posted += articles.length;
 		} catch (err) {
 			// 失敗したら戻して、次の確認で再挑戦する。
-			await db.update(entry).set({ slackNotifiedAt: null }).where(eq(entry.id, row.id));
+			await db
+				.update(entry)
+				.set({ slackNotifiedAt: null })
+				.where(inArray(entry.id, [...ids]));
 			throw err;
 		}
 	}
@@ -280,7 +338,7 @@ export const COUNTDOWN_DAYS_BEFORE = [5, 1] as const;
 const shortDate = (day: number) => `12/${day}(${weekdayOf(day)})`;
 
 /** 明日の予告やカウントダウンに使う、予約済みの枠。 */
-export type Reservation = { day: number; title: string; author: string };
+export type Reservation = { cal: number; day: number; title: string; author: string };
 
 /**
  * 毎朝の日次メッセージを作る。投稿しない日（カウントダウン前・最終日以降）は null。
@@ -291,9 +349,11 @@ export type Reservation = { day: number; title: string; author: string };
 export function dailyMessageOf(reservations: Reservation[], today: string, origin?: string) {
 	const t = SLACK_TEMPLATES.daily;
 	const phase = phaseOf(today);
-	const base = { year: String(CALENDAR_YEAR), calendar: origin ? `${origin}/calendar` : '' };
+	const base = { year: String(CALENDAR_YEAR), calendar: calendarUrl(origin) };
 
 	let headline: string;
+	/** 明日の枠が2つ以上埋まっているときの一覧。 */
+	let lineup = '';
 	if (phase.kind === 'before') {
 		if (!(COUNTDOWN_DAYS_BEFORE as readonly number[]).includes(phase.daysToStart)) return null;
 		headline = fill(phase.daysToStart === 1 ? t.countdownTomorrow : t.countdown, {
@@ -302,30 +362,54 @@ export function dailyMessageOf(reservations: Reservation[], today: string, origi
 		});
 	} else if (phase.kind === 'running' && phase.day < DAYS) {
 		const day = phase.day + 1;
-		const r = reservations.find((r) => r.day === day);
+		const rs = reservations.filter((r) => r.day === day).sort((a, b) => a.cal - b.cal);
 		const vars = { ...base, day: String(day), weekday: weekdayOf(day) };
-		headline = r
-			? fill(t.tomorrow, { ...vars, title: escape(r.title), author: escape(r.author) })
-			: fill(t.tomorrowOpen, vars);
+		if (rs.length === 0) {
+			headline = fill(t.tomorrowOpen, vars);
+		} else if (rs.length === 1) {
+			headline = fill(t.tomorrow, {
+				...vars,
+				title: escape(rs[0].title),
+				author: escape(rs[0].author)
+			});
+		} else {
+			headline = fill(t.tomorrowMany, { ...vars, count: String(rs.length) });
+			lineup = rs
+				.map((r) =>
+					fill(t.tomorrowItem, {
+						title: escape(r.title),
+						author: escape(r.author),
+						calName: calNameOf(r.cal)
+					})
+				)
+				.join('\n');
+		}
 	} else {
 		return null;
 	}
 
-	const taken = new Set(reservations.map((r) => r.day));
-	const open = Array.from({ length: DAYS }, (_, i) => i + 1).filter(
-		(day) => !taken.has(day) && dayOffset(day, today) > 0
-	);
-	const slots = open.length
-		? fill(t.openSlots, { count: String(open.length), days: open.map(shortDate).join('、') })
-		: phase.kind === 'before'
-			? t.full
-			: '';
+	// 明日以降の空き枠を、カレンダーごとに数える。
+	const openLines = CAL_LIST.flatMap((cal) => {
+		const taken = new Set(reservations.filter((r) => r.cal === cal).map((r) => r.day));
+		const open = Array.from({ length: DAYS }, (_, i) => i + 1).filter(
+			(day) => !taken.has(day) && dayOffset(day, today) > 0
+		);
+		if (open.length === 0) return [];
+		const vars = {
+			count: String(open.length),
+			days: open.map(shortDate).join('、'),
+			calName: calNameOf(cal)
+		};
+		return [fill(CALENDARS > 1 ? t.openSlotsCal : t.openSlots, vars)];
+	});
+	const slots = openLines.length ? openLines.join('\n') : phase.kind === 'before' ? t.full : '';
 
 	return {
-		text: [headline, slots].filter(Boolean).join('\n'),
+		text: [headline, lineup, slots].filter(Boolean).join('\n'),
 		blocks: [
 			// 見出しは公開のお知らせと同じく、1行まるごと太字にする（全角文字の直前・直後の * は効かないため）。
 			{ type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
+			...(lineup ? [{ type: 'section', text: { type: 'mrkdwn', text: lineup } }] : []),
 			...(slots ? [{ type: 'section', text: { type: 'mrkdwn', text: slots } }] : []),
 			...(base.calendar
 				? [{ type: 'context', elements: [{ type: 'mrkdwn', text: fill(t.footer, base) }] }]
@@ -335,18 +419,25 @@ export function dailyMessageOf(reservations: Reservation[], today: string, origi
 }
 
 /** URL 未登録のリマインドの対象。 */
-export type Reminder = { day: number; title: string; author: string; daysLeft: number };
+export type Reminder = {
+	cal: number;
+	day: number;
+	title: string;
+	author: string;
+	daysLeft: number;
+};
 
 /** URL 未登録のリマインドを作る。DM でもチャンネルでも同じ文面。 */
 export function reminderMessageOf(r: Reminder, origin?: string) {
 	const t = SLACK_TEMPLATES.reminder;
-	const page = origin ? `${origin}/day/${r.day}` : '';
+	const page = origin ? `${origin}${withCal(`/day/${r.day}`, r.cal)}` : '';
 	const vars = {
 		year: String(CALENDAR_YEAR),
 		day: String(r.day),
 		weekday: weekdayOf(r.day),
 		title: escape(r.title),
 		author: escape(r.author),
+		calName: calNameOf(r.cal),
 		when: r.daysLeft === 1 ? '明日' : `${r.daysLeft}日後`,
 		page
 	};
@@ -372,14 +463,21 @@ const listBlocks = (lines: string[]) =>
 		}
 	}));
 
-/** 全日程の枠が予約で埋まったときのお知らせを作る。ラインナップはスレッドに流す。 */
-export function fullMessageOf(reservations: Reservation[], origin?: string) {
+/**
+ * `cal` 枚目のカレンダーの全枠が予約で埋まったときのお知らせを作る。ラインナップはスレッドに流す。
+ * 次のカレンダーがあれば、そちらで予約できることを添える。
+ */
+export function fullMessageOf(reservations: Reservation[], cal: number, origin?: string) {
 	const t = SLACK_TEMPLATES.full;
+	const hasNext = cal < CALENDARS;
 	const vars = {
 		year: String(CALENDAR_YEAR),
+		nth: String(cal),
+		next: String(cal + 1),
 		count: String(reservations.length),
 		authors: String(new Set(reservations.map((r) => r.author)).size),
-		calendar: origin ? `${origin}/calendar` : ''
+		calendar: calendarUrl(origin, cal),
+		nextCalendar: hasNext ? calendarUrl(origin, cal + 1) : ''
 	};
 	const items = [...reservations]
 		.sort((a, b) => a.day - b.day)
@@ -396,13 +494,25 @@ export function fullMessageOf(reservations: Reservation[], origin?: string) {
 		text: headline,
 		blocks: [
 			{ type: 'section', text: { type: 'mrkdwn', text: `*${headline}*` } },
-			{ type: 'section', text: { type: 'mrkdwn', text: fill(t.thanks, vars) } },
+			{
+				type: 'section',
+				text: {
+					type: 'mrkdwn',
+					text: [fill(t.thanks, vars), hasNext ? fill(t.nextOpen, vars) : '']
+						.filter(Boolean)
+						.join('\n')
+				}
+			},
 			{
 				type: 'context',
 				elements: [
 					{
 						type: 'mrkdwn',
-						text: [t.threadHint, vars.calendar ? fill(t.footer, vars) : '']
+						text: [
+							t.threadHint,
+							vars.calendar ? fill(t.footer, vars) : '',
+							vars.nextCalendar ? fill(t.nextFooter, vars) : ''
+						]
 							.filter(Boolean)
 							.join('　')
 					}
@@ -427,11 +537,12 @@ export type CompletedArticle = { day: number; title: string; url: string; author
 /** 記事の一覧を1ブロックに何行まで入れるか（section の文字数上限 3000 を超えないように）。 */
 const ITEMS_PER_BLOCK = 5;
 
-/** 全日程の記事が出揃ったときのお知らせを作る。 */
-export function completeMessageOf(articles: CompletedArticle[], origin?: string) {
+/** `cal` 枚目のカレンダーの全日程の記事が出揃ったときのお知らせを作る。 */
+export function completeMessageOf(articles: CompletedArticle[], cal: number, origin?: string) {
 	const t = SLACK_TEMPLATES.complete;
 	const vars = {
 		year: String(CALENDAR_YEAR),
+		nth: String(cal),
 		count: String(articles.length),
 		authors: String(new Set(articles.map((a) => a.author)).size),
 		articles: origin ? `${origin}/articles` : ''
@@ -504,7 +615,7 @@ export async function notifyDaily(db: Db, config: SlackConfig, now = new Date())
 	const today = todayInJst(now);
 
 	const reservations = await db
-		.select({ day: entry.day, title: entry.title, author: user.name })
+		.select({ cal: entry.cal, day: entry.day, title: entry.title, author: user.name })
 		.from(entry)
 		.innerJoin(user, eq(entry.userId, user.id))
 		.where(eq(entry.year, CALENDAR_YEAR));
@@ -544,6 +655,7 @@ export async function notifyReminders(db: Db, config: SlackConfig, now = new Dat
 	const rows = await db
 		.select({
 			id: entry.id,
+			cal: entry.cal,
 			day: entry.day,
 			title: entry.title,
 			author: user.name,
@@ -571,7 +683,7 @@ export async function notifyReminders(db: Db, config: SlackConfig, now = new Dat
 				await postMessage(config, reminderMessageOf(reminder, config.origin));
 			}
 			console.log(
-				`[slack] 12/${row.day} の ${row.author} さんにリマインドしました（${daysLeft}日前${slackUser ? '・DM' : '・チャンネル'}）`
+				`[slack] ${calNameOf(row.cal)}12/${row.day} の ${row.author} さんにリマインドしました（${daysLeft}日前${slackUser ? '・DM' : '・チャンネル'}）`
 			);
 			sent++;
 		} catch (err) {
@@ -584,65 +696,84 @@ export async function notifyReminders(db: Db, config: SlackConfig, now = new Dat
 }
 
 /**
- * 全日程の枠が予約で埋まったら、そのお知らせを（最終日まで・1回だけ）投稿する。投稿したら true。
+ * カレンダーごとに、全枠が予約で埋まったらそのお知らせを（最終日まで・1回だけ）投稿する。投稿した件数を返す。
  * 一度送ったあとに取り消し→再予約で埋まり直しても、もう送らない。
  */
 export async function notifyFull(db: Db, config: SlackConfig, now = new Date()) {
-	if (!isPostTime(config, now)) return false;
+	if (!isPostTime(config, now)) return 0;
 	const today = todayInJst(now);
-	if (dayOffset(DAYS, today) < 0) return false;
+	if (dayOffset(DAYS, today) < 0) return 0;
 
-	const reservations = await db
-		.select({ day: entry.day, title: entry.title, author: user.name })
+	const rows = await db
+		.select({ cal: entry.cal, day: entry.day, title: entry.title, author: user.name })
 		.from(entry)
 		.innerJoin(user, eq(entry.userId, user.id))
 		.where(eq(entry.year, CALENDAR_YEAR));
-	if (reservations.length < DAYS) return false;
 
-	const key = `full:${CALENDAR_YEAR}`;
-	if (!(await claim(db, key))) return false;
-	try {
-		await postWithThread(config, fullMessageOf(reservations, config.origin));
-		console.log(`[slack] 全枠が埋まったお知らせを投稿しました`);
-		return true;
-	} catch (err) {
-		await unclaim(db, key);
-		throw err;
+	let posted = 0;
+	for (const cal of CAL_LIST) {
+		const reservations = rows.filter((r) => r.cal === cal);
+		if (reservations.length < DAYS) continue;
+
+		const key = `full:${CALENDAR_YEAR}:${cal}`;
+		if (!(await claim(db, key))) continue;
+		try {
+			await postWithThread(config, fullMessageOf(reservations, cal, config.origin));
+			console.log(`[slack] ${cal}枚目のカレンダーが埋まったお知らせを投稿しました`);
+			posted++;
+		} catch (err) {
+			await unclaim(db, key);
+			throw err;
+		}
 	}
+	return posted;
 }
 
 /**
- * 最終日の翌日以降、全日程の記事の URL が揃っていたらコンプリートのお知らせを投稿する。投稿したら true。
- * 最終日の後に URL が登録されて揃った場合も、その後の確認で投稿する。
+ * 最終日の翌日以降、カレンダーごとに全日程の記事の URL が揃っていたらコンプリートのお知らせを投稿する。
+ * 投稿した件数を返す。最終日の後に URL が登録されて揃った場合も、その後の確認で投稿する。
  */
 export async function notifyComplete(db: Db, config: SlackConfig, now = new Date()) {
-	if (!isPostTime(config, now)) return false;
+	if (!isPostTime(config, now)) return 0;
 	const today = todayInJst(now);
-	if (dayOffset(DAYS, today) >= 0) return false;
+	if (dayOffset(DAYS, today) >= 0) return 0;
 
 	const rows = await db
-		.select({ day: entry.day, title: entry.title, url: entry.url, author: user.name })
+		.select({
+			cal: entry.cal,
+			day: entry.day,
+			title: entry.title,
+			url: entry.url,
+			author: user.name
+		})
 		.from(entry)
 		.innerJoin(user, eq(entry.userId, user.id))
 		.where(and(eq(entry.year, CALENDAR_YEAR), isNotNull(entry.url)));
-	if (rows.length < DAYS) return false;
 
-	const key = `complete:${CALENDAR_YEAR}`;
-	if (!(await claim(db, key))) return false;
-	try {
-		await postWithThread(
-			config,
-			completeMessageOf(
-				rows.map((r) => ({ ...r, url: r.url! })),
-				config.origin
-			)
-		);
-		console.log(`[slack] コンプリートのお知らせを投稿しました`);
-		return true;
-	} catch (err) {
-		await unclaim(db, key);
-		throw err;
+	let posted = 0;
+	for (const cal of CAL_LIST) {
+		const articles = rows.filter((r) => r.cal === cal);
+		if (articles.length < DAYS) continue;
+
+		const key = `complete:${CALENDAR_YEAR}:${cal}`;
+		if (!(await claim(db, key))) continue;
+		try {
+			await postWithThread(
+				config,
+				completeMessageOf(
+					articles.map((r) => ({ ...r, url: r.url! })),
+					cal,
+					config.origin
+				)
+			);
+			console.log(`[slack] ${cal}枚目のカレンダーのコンプリートのお知らせを投稿しました`);
+			posted++;
+		} catch (err) {
+			await unclaim(db, key);
+			throw err;
+		}
 	}
+	return posted;
 }
 
 /** 公開のお知らせ・日次メッセージ・リマインド・全枠埋まり・コンプリートをまとめて実行する。1つ失敗しても他は続ける。 */
