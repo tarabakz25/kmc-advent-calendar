@@ -19,6 +19,7 @@ import {
 } from '#lib/calendar.ts';
 import { db } from '#lib/server/db/index.ts';
 import { entry, user } from '#lib/server/db/schema.ts';
+import { pruneUploads, uploadIdsOf } from '#lib/server/uploads.ts';
 import { notifySlack } from '#lib/server/notify.ts';
 
 /**
@@ -201,9 +202,9 @@ export async function saveEntry(userId: string, cal: number, day: number, form: 
 	return { saved: true as const, cal, day, reserved: !input.url };
 }
 
-/** 自分の枠だけを取り消す。 */
+/** 自分の枠だけを取り消す。本文に入れていた画像・ファイルも消す。 */
 export async function cancelEntry(userId: string, cal: number, day: number) {
-	await db
+	const gone = await db
 		.delete(entry)
 		.where(
 			and(
@@ -212,5 +213,7 @@ export async function cancelEntry(userId: string, cal: number, day: number) {
 				eq(entry.day, day),
 				eq(entry.userId, userId)
 			)
-		);
+		)
+		.returning({ body: entry.body });
+	await pruneUploads(userId, gone.flatMap((r) => uploadIdsOf(r.body)));
 }

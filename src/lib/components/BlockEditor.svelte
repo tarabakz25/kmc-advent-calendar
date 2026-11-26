@@ -4,17 +4,30 @@
 		blk,
 		extOf,
 		hostOf,
+		isMediaUrl,
+		parse,
 		tocOf,
 		type Align,
 		type Block,
 		type BlockType
 	} from '#lib/markdown.ts';
+	import { filesOf, isImageMime, isTextImport, mimeOf, uploadFile } from '#lib/upload.ts';
 
 	/**
 	 * Notion 風のブロックエディタ。1ブロック = 1つの入力欄。
 	 * 「/」でブロックを挿入、「# 」「- 」「> 」などの Markdown 記法を打つとその場で変換する。
+	 * 画像・ファイルは、ドラッグ＆ドロップ・貼り付け・ファイル選択でアップロードできる（.md は本文として読み込む）。
 	 */
-	let { blocks, onchange }: { blocks: Block[]; onchange: (next: Block[]) => void } = $props();
+	let {
+		blocks,
+		onchange,
+		onerror = () => {}
+	}: {
+		blocks: Block[];
+		onchange: (next: Block[]) => void;
+		/** アップロードの失敗など、画面に知らせたいこと。 */
+		onerror?: (msg: string) => void;
+	} = $props();
 
 	type Slash = { id: number; q: string; idx: number; up: boolean; max: number };
 	type Menu = { id: number; up: boolean; max: number };
@@ -23,6 +36,13 @@
 	let menu = $state<Menu | null>(null);
 	let drag = $state<number | null>(null);
 	let drop = $state<{ i: number; after: boolean } | null>(null);
+	/** アップロード中のブロック（id → ファイル名）。 */
+	let uploading = $state<Record<number, string>>({});
+	/** 外からファイルをドラッグしてきている最中か。 */
+	let fileOver = $state(false);
+	let picker = $state<HTMLInputElement>();
+	/** ファイル選択で選んだものを入れる先のブロック。 */
+	let pickFor: number | null = null;
 
 	const els = new Map<number, HTMLTextAreaElement | HTMLInputElement>();
 
@@ -35,9 +55,9 @@
 		['ol', '番号付きリスト', '1.', '「1. 」でも変換', 'ol list number risuto bangou'],
 		['quote', '引用', '“', '「> 」でも変換 · 出典つき', 'quote inyou'],
 		['code', 'コード', '</>', '「```」でも変換', 'code kodo'],
-		['img', '画像', 'IMG', 'URLから画像を表示', 'img image gazou picture'],
+		['img', '画像', 'IMG', 'アップロード・URLで画像を表示', 'img image gazou picture'],
 		['embed', '埋め込み', 'URL', 'リンクをカードで表示', 'embed link url umekomi card'],
-		['file', 'ファイル', 'PDF', 'PDFなどのファイルを添付', 'file pdf fairu'],
+		['file', 'ファイル', 'PDF', 'PDFなどのファイルを添付', 'file pdf fairu upload'],
 		['toc', '目次', 'TOC', '見出しから目次を作る', 'toc mokuji contents'],
 		['hr', '区切り線', '—', '「---」でも変換', 'hr divider line kugiri']
 	];
@@ -82,7 +102,6 @@
 	};
 
 	const isTextType = (t: BlockType) => ['p', 'h1', 'h2', 'h3', 'ul', 'ol', 'quote'].includes(t);
-	const isHttp = (u: string) => /^https?:\/\//i.test(u);
 	/** 入力欄が1つ（URL など）で、Enter で次の段落へ進むブロック。 */
 	const isCardType = (t: BlockType) => t === 'img' || t === 'embed' || t === 'file';
 
@@ -453,15 +472,36 @@
 		);
 	}
 
+	/** 外（Finder など）からファイルをドラッグしているか。ブロックの並べ替えとは区別する。 */
+	const isFileDrag = (e: DragEvent) => drag == null && !!e.dataTransfer?.types.includes('Files');
+
 	function onDragOver(i: number, e: DragEvent) {
-		if (drag == null) return;
+		const files = isFileDrag(e);
+		if (drag == null && !files) return;
 		e.preventDefault();
+		if (files) {
+			e.stopPropagation();
+			e.dataTransfer!.dropEffect = 'copy';
+			fileOver = true;
+		}
 		const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
 		const after = e.clientY > r.top + r.height / 2;
 		if (!drop || drop.i !== i || drop.after !== after) drop = { i, after };
 	}
 
 	function onDrop(i: number, e: DragEvent) {
+		if (isFileDrag(e)) {
+			e.preventDefault();
+			e.stopPropagation();
+			const after = drop?.i === i ? drop.after : true;
+			drop = null;
+			fileOver = false;
+			const b = blocks[i];
+			// URL 未入力の画像・ファイルや空の段落に落としたら、そこを置き換える。
+			const empty = (isCardType(b.type) && !b.url) || (b.type === 'p' && !b.text.trim());
+			addFiles(filesOf(e.dataTransfer), after ? i + 1 : i, empty ? b.id : undefined);
+			return;
+		}
 		if (drag == null) return;
 		e.preventDefault();
 		const from = blocks.findIndex((x) => x.id === drag);
@@ -478,6 +518,106 @@
 		move(from, to);
 	}
 
+	// ───── 画像・ファイルの取り込み ─────
+
+	function patchById(id: number, p: Partial<Block>) {
+		const i = blocks.findIndex((x) => x.id === id);
+		if (i >= 0) patch(i, p);
+	}
+
+	function removeById(id: number) {
+		const next = blocks.filter((x) => x.id !== id);
+		set(next.length ? next : [blk('p')]);
+	}
+
+	/**
+	 * ファイルをブロックにして `at` 番目に入れる。`replace` を渡すと、そのブロック（空の段落や
+	 * URL 未入力の画像など）と置き換える。画像・ファイルは先にブロックを置き、上がったら URL を入れる。
+	 */
+	async function addFiles(files: File[], at: number, replace?: number) {
+		if (!files.length) return;
+		const made: Block[] = [];
+		const jobs: [Block, File][] = [];
+		for (const f of files) {
+			if (isTextImport(f)) {
+				made.push(...parse(await f.text()));
+				continue;
+			}
+			const mime = mimeOf(f.name, f.type);
+			if (!mime) {
+				onerror(`「${f.name}」はアップロードできない種類のファイルです`);
+				continue;
+			}
+			const b = isImageMime(mime) ? blk('img', '', { url: '' }) : blk('file', f.name, { url: '' });
+			made.push(b);
+			jobs.push([b, f]);
+		}
+		if (!made.length) return;
+		const next = blocks.slice();
+		const ri = replace == null ? -1 : next.findIndex((x) => x.id === replace);
+		if (ri >= 0) next.splice(ri, 1, ...made);
+		else next.splice(Math.max(0, Math.min(at, next.length)), 0, ...made);
+		for (const [b, f] of jobs) uploading[b.id] = f.name;
+		slash = null;
+		menu = null;
+		set(next);
+		await Promise.all(
+			jobs.map(async ([b, f]) => {
+				try {
+					const up = await uploadFile(f);
+					patchById(b.id, { url: up.url });
+				} catch (err) {
+					onerror(err instanceof Error ? err.message : 'アップロードできませんでした');
+					removeById(b.id);
+				} finally {
+					delete uploading[b.id];
+				}
+			})
+		);
+	}
+
+	/** 貼り付け・ドロップしたブロックの位置。中身が空の段落なら、そこを置き換える。 */
+	function targetOf(el: EventTarget | null): { at: number; replace?: number } {
+		const id = Number(
+			(el as HTMLElement | null)?.closest?.('[data-bid]')?.getAttribute('data-bid')
+		);
+		const i = blocks.findIndex((x) => x.id === id);
+		if (i < 0) return { at: blocks.length };
+		const b = blocks[i];
+		if ((b.type === 'p' && !b.text.trim()) || (isCardType(b.type) && !b.url))
+			return { at: i, replace: b.id };
+		return { at: i + 1 };
+	}
+
+	function onPaste(e: ClipboardEvent) {
+		const files = filesOf(e.clipboardData);
+		if (!files.length) return;
+		// Excel のセルなどは、文字と一緒に画像も入っている。文字があればふつうに貼る
+		// （Finder でコピーしたファイルはファイル名が文字として入るので、それは除く）。
+		const txt = e.clipboardData?.getData('text/plain').trim() ?? '';
+		if (txt && !files.some((f) => f.name === txt)) return;
+		e.preventDefault();
+		const t = targetOf(e.target);
+		addFiles(files, t.at, t.replace);
+	}
+
+	function openPicker(id: number, accept: string) {
+		if (!picker) return;
+		pickFor = id;
+		picker.accept = accept;
+		picker.value = '';
+		picker.click();
+	}
+
+	function onPicked() {
+		const files = Array.from(picker?.files ?? []);
+		const id = pickFor;
+		pickFor = null;
+		const i = blocks.findIndex((x) => x.id === id);
+		if (i < 0) return addFiles(files, blocks.length);
+		addFiles(files, i + 1, blocks[i].url ? undefined : blocks[i].id);
+	}
+
 	function addEnd() {
 		const last = blocks[blocks.length - 1];
 		if (last && last.type === 'p' && !last.text) {
@@ -489,13 +629,52 @@
 	}
 </script>
 
-<div class="nd scroll">
+<div
+	class="nd scroll"
+	class:nd-fileover={fileOver}
+	role="region"
+	aria-label="本文エディタ"
+	onpaste={onPaste}
+	ondragover={(e) => {
+		if (!isFileDrag(e)) return;
+		// ブロックの外（下の余白など）に落とすと末尾に入れる。
+		e.preventDefault();
+		e.dataTransfer!.dropEffect = 'copy';
+		fileOver = true;
+		const last = blocks.length - 1;
+		if (!drop || drop.i !== last || !drop.after) drop = { i: last, after: true };
+	}}
+	ondragleave={(e) => {
+		const to = e.relatedTarget as Node | null;
+		if (!to || !(e.currentTarget as HTMLElement).contains(to)) {
+			fileOver = false;
+			if (drag == null) drop = null;
+		}
+	}}
+	ondrop={(e) => {
+		if (!isFileDrag(e)) return;
+		e.preventDefault();
+		drop = null;
+		fileOver = false;
+		addFiles(filesOf(e.dataTransfer), blocks.length);
+	}}
+>
+	<input
+		class="nd-picker"
+		type="file"
+		multiple
+		tabindex="-1"
+		aria-hidden="true"
+		bind:this={picker}
+		onchange={onPicked}
+	/>
 	<div class="nd-in">
 		{#each blocks as b, i (b.id)}
 			{@const sl = slash && slash.id === b.id ? slash : null}
 			{@const items = sl ? slashList(sl.q) : []}
 			{@const head = b.type === 'h1' || b.type === 'h2' || b.type === 'h3'}
-			{@const okImg = b.type === 'img' && isHttp(b.url || '')}
+			{@const okImg = b.type === 'img' && isMediaUrl(b.url || '')}
+			{@const upName = uploading[b.id]}
 			<div
 				class="nb nb-t-{b.type}"
 				class:nb-first={i === 0}
@@ -505,6 +684,7 @@
 				class:nb-active={menu?.id === b.id || !!sl}
 				style="--gt: {GT[b.type]}"
 				role="group"
+				data-bid={b.id}
 				ondragover={(e) => onDragOver(i, e)}
 				ondrop={(e) => onDrop(i, e)}
 			>
@@ -624,7 +804,7 @@
 									onchange={(e) => patch(i, { url: e.currentTarget.value.trim() })}
 								/>
 							{:else}
-								<div class="nb-imgph">
+								<div class="nb-imgph" class:nb-up={!!upName}>
 									<svg
 										width="20"
 										height="20"
@@ -639,17 +819,26 @@
 											r="1.6"
 										></circle><path d="M21 16l-5-5-9 8.5"></path></svg
 									>
-									<input
-										class="nb-url"
-										type="url"
-										aria-label="画像URL"
-										placeholder="画像URLを貼り付け（https://…）"
-										value={b.url}
-										onchange={(e) => patch(i, { url: e.currentTarget.value.trim() })}
-										onkeydown={(e) => onKey(i, e)}
-										onfocus={() => onFocus(b.id)}
-										use:reg={b.id}
-									/>
+									{#if upName}
+										<span class="nb-uptext" role="status">「{upName}」をアップロード中…</span>
+									{:else}
+										<input
+											class="nb-url"
+											type="url"
+											aria-label="画像URL"
+											placeholder="画像URLを貼り付け・ドロップ（https://…）"
+											value={b.url}
+											onchange={(e) => patch(i, { url: e.currentTarget.value.trim() })}
+											onkeydown={(e) => onKey(i, e)}
+											onfocus={() => onFocus(b.id)}
+											use:reg={b.id}
+										/>
+										<button
+											class="nb-pick"
+											type="button"
+											onclick={() => openPicker(b.id, 'image/*')}>画像を選ぶ</button
+										>
+									{/if}
 								</div>
 							{/if}
 						</figure>
@@ -685,8 +874,8 @@
 							</span>
 						</div>
 					{:else if b.type === 'file'}
-						<div class="nb-card">
-							<span class="nb-card-ext" aria-hidden="true">{extOf(b.url)}</span>
+						<div class="nb-card" class:nb-up={!!upName}>
+							<span class="nb-card-ext" aria-hidden="true">{extOf(b.url || b.text)}</span>
 							<span class="nb-card-b">
 								<input
 									class="nb-url nb-fname"
@@ -699,16 +888,25 @@
 									onfocus={() => onFocus(b.id)}
 									use:reg={b.id}
 								/>
-								<input
-									class="nb-url nb-furl"
-									type="url"
-									aria-label="ファイルのURL"
-									placeholder="ファイルのURL（https://…/資料.pdf）"
-									value={b.url}
-									onchange={(e) => patch(i, { url: e.currentTarget.value.trim() })}
-									onkeydown={(e) => onKey(i, e)}
-								/>
+								{#if upName}
+									<span class="nb-uptext nb-furl" role="status">アップロード中…</span>
+								{:else}
+									<input
+										class="nb-url nb-furl"
+										type="url"
+										aria-label="ファイルのURL"
+										placeholder="ファイルのURL（https://…/資料.pdf）"
+										value={b.url}
+										onchange={(e) => patch(i, { url: e.currentTarget.value.trim() })}
+										onkeydown={(e) => onKey(i, e)}
+									/>
+								{/if}
 							</span>
+							{#if !upName && !b.url}
+								<button class="nb-pick" type="button" onclick={() => openPicker(b.id, '')}
+									>ファイルを選ぶ</button
+								>
+							{/if}
 						</div>
 					{:else if b.type === 'toc'}
 						<div class="nb-toc">
@@ -1084,6 +1282,44 @@
 	}
 	.nb-url::placeholder {
 		color: #8a8274;
+	}
+	.nd-picker {
+		display: none;
+	}
+	.nd-fileover {
+		background: rgba(30, 77, 60, 0.04);
+	}
+	.nb-pick {
+		flex: none;
+		font: inherit;
+		font-size: 12.5px;
+		font-weight: 600;
+		color: var(--color-pine);
+		background: #fff;
+		border: 1px solid #d9d2c5;
+		border-radius: 6px;
+		padding: 4px 10px;
+		cursor: pointer;
+	}
+	.nb-pick:hover {
+		background: var(--color-cream);
+	}
+	.nb-uptext {
+		flex: 1;
+		min-width: 0;
+		font-size: 14px;
+		color: #6b6458;
+		min-height: 28px;
+		display: flex;
+		align-items: center;
+	}
+	.nb-up {
+		animation: nb-pulse 1.2s ease-in-out infinite;
+	}
+	@keyframes nb-pulse {
+		50% {
+			opacity: 0.55;
+		}
 	}
 	.nb-url2 {
 		display: block;

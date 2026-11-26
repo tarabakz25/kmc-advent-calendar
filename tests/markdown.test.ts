@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { inline, parse, serialize, toView } from '../src/lib/markdown.ts';
+import { mimeOf, safeName } from '../src/lib/upload.ts';
 
 const strip = (md: string) => parse(md).map(({ id: _id, ...b }) => b);
 
@@ -121,4 +122,39 @@ test('目次は h3 を第2階層にし、埋め込み・ファイルは http(s) 
 		ext: 'PDF',
 		host: 'e.com'
 	});
+});
+
+test('アップロードした画像・ファイルの /uploads/ パスを表示に通す', () => {
+	const md =
+		'![図](/uploads/abcDEF123_-x/zu.webp)\n\n[資料.pdf](/uploads/abcDEF123_-x/shiryou.pdf)';
+	const blocks = parse(md);
+	expect(blocks.map((b) => b.type)).toEqual(['img', 'file']);
+	expect(serialize(blocks)).toBe(md);
+	const { view } = toView(blocks);
+	expect(view[0]).toMatchObject({ kind: 'img', url: '/uploads/abcDEF123_-x/zu.webp' });
+	expect(view[1]).toMatchObject({
+		kind: 'file',
+		href: '/uploads/abcDEF123_-x/shiryou.pdf',
+		ext: 'PDF'
+	});
+});
+
+test('http(s) でも /uploads/ でもない画像 URL は表示しない', () => {
+	for (const url of [
+		'javascript:alert`1`',
+		'/etc/passwd',
+		'//evil.example/x.png',
+		'/uploads/../x.png'
+	])
+		expect(toView(parse(`![x](${url})`)).view[0]).toMatchObject({ kind: 'img', url: null });
+});
+
+test('アップロードするファイル名を URL に入れられる形にする', () => {
+	expect(safeName('スクリーンショット 2026-11-26 12.00.png', 'image/png')).toBe(
+		'スクリーンショット-2026-11-26-12.00.png'
+	);
+	expect(safeName('../../a?b#c.svg', 'image/svg+xml')).toBe('..-..-a-b-c.svg');
+	expect(safeName('noext', 'application/pdf')).toBe('noext.pdf');
+	expect(mimeOf('memo.md', '')).toBe('text/markdown');
+	expect(mimeOf('page.html', 'text/html')).toBe('');
 });

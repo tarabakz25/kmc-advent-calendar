@@ -1,5 +1,15 @@
 import { sql } from 'drizzle-orm';
-import { check, integer, pgTable, serial, text, timestamp, unique } from 'drizzle-orm/pg-core';
+import {
+	check,
+	customType,
+	index,
+	integer,
+	pgTable,
+	serial,
+	text,
+	timestamp,
+	unique
+} from 'drizzle-orm/pg-core';
 import { user } from './auth.schema';
 
 /**
@@ -55,5 +65,28 @@ export const slackLog = pgTable('slack_log', {
 	key: text('key').primaryKey(),
 	createdAt: timestamp('created_at').defaultNow().notNull()
 });
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => 'bytea' });
+
+/**
+ * エディタから上げた画像・ファイル。Vercel でも Docker でも同じように動くよう、中身ごと DB に置く。
+ * `/uploads/{id}/{name}` で配信する（`src/routes/uploads/[id]/[name]/+server.ts`）。
+ */
+export const upload = pgTable(
+	'upload',
+	{
+		/** 推測されにくいランダムな ID。 */
+		id: text('id').primaryKey(),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: text('name').notNull(),
+		mime: text('mime').notNull(),
+		size: integer('size').notNull(),
+		data: bytea('data').notNull(),
+		createdAt: timestamp('created_at').defaultNow().notNull()
+	},
+	(t) => [index('upload_user_id_idx').on(t.userId)]
+);
 
 export * from './auth.schema';

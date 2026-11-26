@@ -9,6 +9,7 @@
 	import Avatar from '#lib/components/Avatar.svelte';
 	import BlockEditor from '#lib/components/BlockEditor.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
+	import { filesOf, isTextImport, uploadFile } from '#lib/upload.ts';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
@@ -193,7 +194,13 @@
 			'[名前.pdf](URL)',
 			() => ((insOpen = false), blockInsert('[ファイル名.pdf](https://)', 1, 9))
 		],
-		['目次', 'TOC', '見出しから目次を作る', () => ((insOpen = false), blockInsert('[toc]'))]
+		['目次', 'TOC', '見出しから目次を作る', () => ((insOpen = false), blockInsert('[toc]'))],
+		[
+			'画像・ファイルを選ぶ',
+			'↑',
+			'アップロードして挿入（ドロップ・貼り付けでも可）',
+			() => ((insOpen = false), mdPicker?.click())
+		]
 	];
 
 	const CHEATS: [string, string][] = [
@@ -239,6 +246,78 @@
 		}
 	}
 
+	// ───── Markdown モードでの画像・ファイルの取り込み ─────
+
+	let mdPicker = $state<HTMLInputElement>();
+	let upSeq = 0;
+
+	/**
+	 * カーソル位置に「アップロード中」の仮の行を入れ、上がったら本物の記法に置き換える。
+	 * 待っているあいだに本文を書き換えても、仮の行を探して置き換えるので位置がずれない。
+	 */
+	async function mdFiles(files: File[], at = sel().s) {
+		if (!files.length) return;
+		let ins = '';
+		const jobs: [string, File][] = [];
+		for (const f of files) {
+			if (isTextImport(f)) {
+				ins += (await f.text()).trim() + '\n\n';
+				continue;
+			}
+			const tok = `![アップロード中…${++upSeq}: ${f.name.replace(/[\]\n]/g, ' ')}]()`;
+			jobs.push([tok, f]);
+			ins += tok + '\n\n';
+		}
+		const pos = Math.min(at, md.length);
+		const pre = md.slice(0, pos);
+		const lead = pre && !pre.endsWith('\n\n') ? (pre.endsWith('\n') ? '\n' : '\n\n') : '';
+		setMdSel(pre + lead + ins + md.slice(pos), pos + lead.length + ins.length);
+		await Promise.all(
+			jobs.map(async ([tok, f]) => {
+				let rep = '';
+				try {
+					const up = await uploadFile(f);
+					const name = up.name.replace(/[\]\n]/g, ' ');
+					rep = up.image ? `![](${up.url})` : `[${name}](${up.url})`;
+				} catch (err) {
+					flash(err instanceof Error ? err.message : 'アップロードできませんでした');
+				}
+				setMd(rep ? md.replace(tok, rep) : md.replace(tok + '\n\n', '').replace(tok, ''));
+			})
+		);
+	}
+
+	function onMdPaste(e: ClipboardEvent) {
+		const files = filesOf(e.clipboardData);
+		const txt = e.clipboardData?.getData('text/plain').trim() ?? '';
+		if (!files.length || (txt && !files.some((f) => f.name === txt))) return;
+		e.preventDefault();
+		mdFiles(files);
+	}
+
+	function onMdDrop(e: DragEvent) {
+		const files = filesOf(e.dataTransfer);
+		if (!files.length) return;
+		e.preventDefault();
+		e.stopPropagation();
+		// 落とした位置に入れる。位置が取れないブラウザでは、いまのカーソル位置に入れる。
+		const doc = document as Document & {
+			caretPositionFromPoint?: (
+				x: number,
+				y: number
+			) => { offsetNode: Node; offset: number } | null;
+		};
+		let at = sel().s;
+		const cp = doc.caretPositionFromPoint?.(e.clientX, e.clientY);
+		if (cp && cp.offsetNode === ta) at = cp.offset;
+		mdFiles(files, at);
+	}
+
+	/** エディタの外にファイルを落としたとき、ブラウザがそのファイルを開いて書きかけが消えないようにする。 */
+	function guardDrop(e: DragEvent) {
+		if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+	}
+
 	function onWindowKey(e: KeyboardEvent) {
 		// ⌘S / Ctrl+S で下書き保存
 		if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
@@ -276,7 +355,7 @@
 	<title>記事を書く（12/{d.day}） | KMC Advent Calendar {data.year}</title>
 </svelte:head>
 
-<svelte:window onkeydown={onWindowKey} />
+<svelte:window onkeydown={onWindowKey} ondragover={guardDrop} ondrop={guardDrop} />
 
 <div class="shell pagein" style="--hh: {headerH}px">
 	<main class="work">
@@ -562,12 +641,28 @@
 						value={md}
 						oninput={(e) => setMd(e.currentTarget.value)}
 						onkeydown={onMdKey}
+						onpaste={onMdPaste}
+						ondrop={onMdDrop}
 						bind:this={ta}></textarea>
+					<input
+						class="hidden"
+						type="file"
+						multiple
+						tabindex="-1"
+						aria-hidden="true"
+						bind:this={mdPicker}
+						onchange={(e) => {
+							const files = Array.from(e.currentTarget.files ?? []);
+							e.currentTarget.value = '';
+							mdFiles(files);
+						}}
+					/>
 				{:else}
 					<div class="pane-h">
 						<span class="pane-t">GUI</span>
 						<span class="flex items-center gap-2"
-							><span class="hint">「/」でブロックを挿入 · Markdown 記法でも変換</span><button
+							><span class="hint">「/」でブロックを挿入 · 画像はドロップ・貼り付けで追加</span
+							><button
 								class="tb-b"
 								aria-label="記法一覧"
 								aria-expanded={helpOpen}
@@ -575,7 +670,7 @@
 							></span
 						>
 					</div>
-					<BlockEditor {blocks} onchange={setBlocks} />
+					<BlockEditor {blocks} onchange={setBlocks} onerror={flash} />
 				{/if}
 				{#if helpOpen}
 					<div class="pop pop-help" role="dialog" aria-label="記法一覧">

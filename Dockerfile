@@ -14,7 +14,8 @@ RUN DATABASE_URL=postgres://build:build@localhost:5432/build \
     BETTER_AUTH_SECRET=build-time-placeholder-not-used-at-runtime \
     bun run build
 
-ENV NODE_ENV=production PORT=3000
+# アップロード（1ファイル 4MB まで、`#lib/upload.ts`）が通るよう、本文の上限を既定の 512K から上げる。
+ENV NODE_ENV=production PORT=3000 BODY_SIZE_LIMIT=5M
 EXPOSE 3000
 USER bun
 CMD ["bun", "./build/index.js"]

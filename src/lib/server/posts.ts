@@ -13,6 +13,7 @@ import { BODY_MAX } from '#lib/markdown.ts';
 import { db } from '#lib/server/db/index.ts';
 import { entry, user } from '#lib/server/db/schema.ts';
 import { notifySlack } from '#lib/server/notify.ts';
+import { pruneUploads, uploadIdsOf } from '#lib/server/uploads.ts';
 
 /**
  * サイト内の記事の状態。
@@ -70,7 +71,12 @@ export async function loadDraft(userId: string, cal: number, day: number) {
  * 記事ページ用。公開済みなら誰でも、本人なら公開日前や下書きでも読める。
  * 読めないときは null（存在を知らせないよう、どれも 404 にする）。
  */
-export async function loadPost(cal: number, day: number, viewerId: string | undefined, today: string) {
+export async function loadPost(
+	cal: number,
+	day: number,
+	viewerId: string | undefined,
+	today: string
+) {
 	const row = await find(cal, day);
 	if (!row || row.body === null) return null;
 	const mine = row.userId === viewerId;
@@ -98,7 +104,11 @@ export async function myDays(userId: string) {
 		.from(entry)
 		.where(and(eq(entry.year, CALENDAR_YEAR), eq(entry.userId, userId)))
 		.orderBy(entry.day, entry.cal);
-	return rows.map((r) => ({ cal: r.cal, day: r.day, status: statusOf(r.body, r.url, r.day, r.cal) }));
+	return rows.map((r) => ({
+		cal: r.cal,
+		day: r.day,
+		status: statusOf(r.body, r.url, r.day, r.cal)
+	}));
 }
 
 /**
@@ -126,6 +136,14 @@ export async function savePost(
 	}
 
 	const url = postPath(day, cal);
+	const where = and(
+		eq(entry.year, CALENDAR_YEAR),
+		eq(entry.cal, cal),
+		eq(entry.day, day),
+		eq(entry.userId, userId)
+	);
+	// 本文から消えた画像・ファイルを、保存のあとで DB からも消すため。
+	const [before] = await db.select({ body: entry.body }).from(entry).where(where);
 	const saved = await db
 		.update(entry)
 		.set({
@@ -136,17 +154,16 @@ export async function savePost(
 			...(publish ? { url, postedAt: sql`coalesce(${entry.postedAt}, now())` } : {}),
 			updatedAt: new Date()
 		})
-		.where(
-			and(
-				eq(entry.year, CALENDAR_YEAR),
-				eq(entry.cal, cal),
-				eq(entry.day, day),
-				eq(entry.userId, userId)
-			)
-		)
+		.where(where)
 		.returning({ url: entry.url });
 
 	if (saved.length === 0) return fail(403, { message: 'この日はあなたの担当ではありません。' });
+
+	const kept = new Set(uploadIdsOf(body));
+	await pruneUploads(
+		userId,
+		uploadIdsOf(before?.body).filter((id) => !kept.has(id))
+	);
 
 	// 公開日を過ぎてから投稿したら、Cron を待たずに Slack に流す（entries.ts の saveEntry と同じ）。
 	if (publish && dayOffset(day, todayInJst()) <= 0) {

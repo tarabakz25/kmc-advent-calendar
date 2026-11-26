@@ -5,8 +5,11 @@
  * 画像・埋め込み（URL だけの行 → リンクカード）・ファイル（[名前.pdf](URL)）・目次（[toc]）・区切り線。
  * 行内: **太字** __太字__ *斜体* ~~取り消し線~~ `コード` [リンク](https://…)。
  *
- * `<p align="center">` は記法として読むだけで、HTML としては一切通さない。リンク・画像は http(s) だけ。
+ * `<p align="center">` は記法として読むだけで、HTML としては一切通さない。リンク・画像は http(s) だけ
+ * （画像・ファイルは、エディタからアップロードした `/uploads/…` も可）。
  */
+
+import { RE_UPLOAD_PATH } from './upload.ts';
 
 export type BlockType =
 	| 'p'
@@ -59,7 +62,7 @@ const RE_ALIGN = /^<p align="(center|right)">([\s\S]*)$/;
 const RE_ALIGN_END = /<\/p>\s*$/;
 const RE_EMBED = /^https?:\/\/\S+\s*$/;
 const RE_FILE =
-	/^\[([^\]]+)\]\((https?:\/\/[^)\s]+\.(?:pdf|docx?|xlsx?|pptx?|zip|txt|csv|key|pages|numbers|md))\)\s*$/i;
+	/^\[([^\]]+)\]\(((?:https?:\/\/|\/uploads\/)[^)\s]+\.(?:pdf|docx?|xlsx?|pptx?|zip|txt|csv|key|pages|numbers|md))\)\s*$/i;
 const RE_TOC = /^\[toc\]\s*$/i;
 /** 引用の最後の行が「— 出典」なら出典として扱う。 */
 const RE_CITE = /^(?:—|―|--)\s*(.+)$/;
@@ -232,6 +235,8 @@ export function serialize(blocks: Block[]): string {
 export type Seg = { text: string; cls: '' | 'i-b' | 'i-i' | 'i-s' | 'i-c'; href: string | null };
 
 const isHttp = (u: string) => /^https?:\/\//i.test(u);
+/** 画像・ファイルの URL として使えるか（http(s) か、アップロードしたファイル）。 */
+export const isMediaUrl = (u: string) => isHttp(u) || RE_UPLOAD_PATH.test(u);
 
 /** 行内の記法を分解する。リンクは http(s) のものだけを通す。 */
 export function inline(text: string): Seg[] {
@@ -318,6 +323,7 @@ export function toView(blocks: Block[], prefix = 'sec-'): { view: ViewBlock[]; t
 		const t = b.text || '';
 		const last = view[view.length - 1];
 		const url = isHttp(b.url || '') ? b.url : null;
+		const media = isMediaUrl(b.url || '') ? b.url : null;
 		switch (b.type) {
 			case 'ul':
 			case 'ol':
@@ -340,7 +346,7 @@ export function toView(blocks: Block[], prefix = 'sec-'): { view: ViewBlock[]; t
 				view.push({ kind: 'code', text: t, lang: b.lang || '' });
 				break;
 			case 'img':
-				view.push({ kind: 'img', url, caption: t });
+				view.push({ kind: 'img', url: media, caption: t });
 				break;
 			case 'embed':
 				view.push({
@@ -352,7 +358,7 @@ export function toView(blocks: Block[], prefix = 'sec-'): { view: ViewBlock[]; t
 			case 'file':
 				view.push({
 					kind: 'file',
-					href: url,
+					href: media,
 					name: t || 'ファイル',
 					ext: extOf(b.url),
 					host: hostOf(b.url)
